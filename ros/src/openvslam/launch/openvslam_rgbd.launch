@@ -1,0 +1,29 @@
+
+<!-- Launch file to run OpenVSLAM for RGBD Cameras -->
+
+<launch>
+	<!-- True for simulation, False for real time -->
+	<arg name="simulation" default="true"/>
+	<param if="$(arg simulation)" name="use_sim_time" value="true"/>
+	
+	<!-- Set the path to the local VSLAM-tests repostiory -->
+	<arg name="vslam_repo_path"			default="$(env HOME)/catkin_ws/src/vslam-tests/openvslam_bringup"/>
+	
+	<arg name="test_d435"				default="true"/> <!-- Select the camera to test -->
+	<arg name="d435_config"				default="d435_openvslam.yaml"/> <!--Name of the camera's configuration file -->
+	<arg if="$(arg test_d435)" 			name="config_path" default="$(arg vslam_repo_path)/config/$(arg d435_config)"/> <!-- Config file path -->
+	<arg unless="$(arg test_d435)" 		name="config_path" default=""/>
+
+	<arg name="orb_vocab_config"		default="orb_vocab.dbow2"/> <!-- Orb_vocab file name -->
+	<arg name="orb_vocab_path" 			default="$(arg vslam_repo_path)/orb_vocab/$(arg orb_vocab_config)"/> <!-- Orb_vocab file path -->
+	
+	<arg name="save_keyframes" 			default="true"/> <!-- store trajectory and tracking times for evaluation -->
+	<arg name="save_keyframes_path" 	default="$(arg vslam_repo_path)/evaluation_files/"/>
+	<arg if="$(arg save_keyframes)" 	name="arg_keyframes" default="--eval-log"/>
+	<arg unless="$(arg save_keyframes)" name="arg_keyframes" default=""/>
+
+	<!-- Launch OpenVSLAM -->
+	<node pkg="openvslam" type="rgbd_slam" name="rgbd_slam" args="-v $(arg orb_vocab_path)   -c $(arg config_path)  $(arg arg_keyframes)" output="screen">
+		<param name="save_file_path" value="$(arg save_keyframes_path)"/>
+	</node>
+</launch>

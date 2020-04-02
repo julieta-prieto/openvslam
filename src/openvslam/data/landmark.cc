@@ -22,6 +22,19 @@ landmark::landmark(const unsigned int id, const unsigned int first_keyfrm_id,
     : id_(id), first_keyfrm_id_(first_keyfrm_id), pos_w_(pos_w), ref_keyfrm_(ref_keyfrm),
       num_observable_(num_visible), num_observed_(num_found), map_db_(map_db) {}
 
+//-------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------
+void landmark::UpdateScale(float scale)
+{
+    set_pos_in_world(get_pos_in_world()*scale);
+    max_valid_dist_ *= scale;
+    min_valid_dist_ *= scale;
+}
+//-------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------
+
 void landmark::set_pos_in_world(const Vec3_t& pos_w) {
     std::lock_guard<std::mutex> lock(mtx_position_);
     pos_w_ = pos_w;

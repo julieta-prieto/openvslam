@@ -1,4 +1,5 @@
 #include "openvslam/mapping_module.h"
+#include "openvslam/tracking_module.h"
 #include "openvslam/data/landmark.h"
 #include "openvslam/data/bow_database.h"
 #include "openvslam/data/map_database.h"
@@ -18,6 +19,16 @@ void keyframe_inserter::set_mapping_module(mapping_module* mapper) {
     mapper_ = mapper;
 }
 
+//-------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------
+void keyframe_inserter::set_tracking_module(tracking_module* tracker) {
+    tracker_ = tracker;
+}
+//-------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------
+
 void keyframe_inserter::reset() {
     frm_id_of_last_keyfrm_ = 0;
 }
@@ -25,6 +36,7 @@ void keyframe_inserter::reset() {
 bool keyframe_inserter::new_keyframe_is_needed(const data::frame& curr_frm, const unsigned int num_tracked_lms,
                                                const data::keyframe& ref_keyfrm) const {
     assert(mapper_);
+
     // mapping moduleが停止しているときはキーフレームが追加できない
     if (mapper_->is_paused() || mapper_->pause_is_requested()) {
         return false;
@@ -43,8 +55,27 @@ bool keyframe_inserter::new_keyframe_is_needed(const data::frame& curr_frm, cons
     constexpr unsigned int num_tracked_lms_thr = 15;
     const float lms_ratio_thr = 0.9;
 
+    //-------------------------------------------------------------------------------------------
+    //-------------------------------------------------------------------------------------------
+    //-------------------------------------------------------------------------------------------
+    double timegap = 0.1;
+    if(mapper_->GetVINSInited())
+        timegap = 0.5;//0.5;
+    //const bool cTimeGap = (fabs(mCurrentFrame.mTimeStamp - mpLastKeyFrame->mTimeStamp)>=0.3 && mnMatchesInliers>15);
+    const bool cTimeGap = ((curr_frm.timestamp_ - ref_keyfrm.timestamp_)>=timegap) && mapper_is_idle && num_tracked_lms>15;
+    //-------------------------------------------------------------------------------------------
+    //-------------------------------------------------------------------------------------------
+    //-------------------------------------------------------------------------------------------
+
     // 条件A1: 前回のキーフレーム挿入からmax_num_frames_以上経過していたらキーフレームを追加する
-    const bool cond_a1 = frm_id_of_last_keyfrm_ + max_num_frms_ <= curr_frm.id_;
+    //-------------------------------------------------------------------------------------------
+    //-------------------------------------------------------------------------------------------
+    //-------------------------------------------------------------------------------------------
+    //const bool cond_a1 = frm_id_of_last_keyfrm_ + max_num_frms_ <= curr_frm.id_;
+    const bool cond_a1 = ref_keyfrm.timestamp_ + 1.0 <= curr_frm.timestamp_;
+    //-------------------------------------------------------------------------------------------
+    //-------------------------------------------------------------------------------------------
+    //-------------------------------------------------------------------------------------------
     // 条件A2: min_num_frames_以上経過していて,mapping moduleが待機状態であればキーフレームを追加する
     const bool cond_a2 = (frm_id_of_last_keyfrm_ + min_num_frms_ <= curr_frm.id_) && mapper_is_idle;
     // 条件A3: 前回のキーフレームから視点が移動してたらキーフレームを追加する
@@ -52,6 +83,16 @@ bool keyframe_inserter::new_keyframe_is_needed(const data::frame& curr_frm, cons
 
     // 条件B: (キーフレーム追加の必要条件)3次元点が閾値以上観測されていて，3次元点との割合が一定割合以下であればキーフレームを追加する
     const bool cond_b = (num_tracked_lms_thr <= num_tracked_lms) && (num_tracked_lms < num_reliable_lms * lms_ratio_thr);
+
+    //-------------------------------------------------------------------------------------------
+    //-------------------------------------------------------------------------------------------
+    //-------------------------------------------------------------------------------------------
+    if (!cTimeGap) {
+        return false;
+    }
+    //-------------------------------------------------------------------------------------------
+    //-------------------------------------------------------------------------------------------
+    //-------------------------------------------------------------------------------------------
 
     // Bが満たされていなければ追加しない
     if (!cond_b) {
@@ -85,7 +126,20 @@ data::keyframe* keyframe_inserter::insert_new_keyframe(data::frame& curr_frm) {
     }
 
     curr_frm.update_pose_params();
-    auto keyfrm = new data::keyframe(curr_frm, map_db_, bow_db_);
+    auto keyfrm = new data::keyframe(curr_frm, map_db_, bow_db_, tracker_->mvIMUSinceLastKF, tracker_->ref_keyfrm_public_);
+
+    //-------------------------------------------------------------------------------------------
+    //-------------------------------------------------------------------------------------------
+    //-------------------------------------------------------------------------------------------
+    // Set initial NavState for KeyFrame
+    keyfrm->SetInitialNavStateAndBias(curr_frm.GetNavState());
+    // Compute pre-integrator
+    keyfrm->ComputePreInt();
+    // Clear IMUData buffer
+    tracker_->mvIMUSinceLastKF.clear();
+    //-------------------------------------------------------------------------------------------
+    //-------------------------------------------------------------------------------------------
+    //-------------------------------------------------------------------------------------------
 
     frm_id_of_last_keyfrm_ = curr_frm.id_;
 

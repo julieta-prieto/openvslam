@@ -37,10 +37,17 @@ public:
      * @param pre_corrected_Sim3s
      * @param loop_connections
      */
+    //-------------------------------------------------------------------------------------------
+    //-------------------------------------------------------------------------------------------
+    // modificado el constructor
+    //-------------------------------------------------------------------------------------------
     void optimize(data::keyframe* loop_keyfrm, data::keyframe* curr_keyfrm,
                   const module::keyframe_Sim3_pairs_t& non_corrected_Sim3s,
                   const module::keyframe_Sim3_pairs_t& pre_corrected_Sim3s,
                   const std::map<data::keyframe*, std::set<data::keyframe*>>& loop_connections) const;
+    //-------------------------------------------------------------------------------------------
+    //-------------------------------------------------------------------------------------------
+    //-------------------------------------------------------------------------------------------
 
 private:
     //! map database

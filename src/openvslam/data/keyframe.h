@@ -13,6 +13,10 @@
 #include <g2o/types/sba/types_six_dof_expmap.h>
 #include <nlohmann/json_fwd.hpp>
 
+#include "openvslam/IMU/imudata.h"
+#include "openvslam/IMU/NavState.h"
+#include "openvslam/IMU/IMUPreintegrator.h"
+
 #ifdef USE_DBOW2
 #include <DBoW2/BowVector.h>
 #include <DBoW2/FeatureVector.h>
@@ -44,6 +48,53 @@ public:
     bool operator<=(const keyframe& keyfrm) const { return id_ <= keyfrm.id_; }
     bool operator>(const keyframe& keyfrm) const { return id_ > keyfrm.id_; }
     bool operator>=(const keyframe& keyfrm) const { return id_ >= keyfrm.id_; }
+
+    //-------------------------------------------------------------------------------------------
+    //-------------------------------------------------------------------------------------------
+    //-------------------------------------------------------------------------------------------
+    /**
+     * Constructor for building from a frame - VI
+     */
+    keyframe(const frame& frm, map_database* map_db, bow_database* bow_db, std::vector<IMUData> vIMUData, keyframe* pLastKF=NULL);
+
+    keyframe* GetPrevKeyFrame(void);
+    keyframe* GetNextKeyFrame(void);
+    void SetPrevKeyFrame(keyframe* pKF);
+    void SetNextKeyFrame(keyframe* pKF);
+
+    std::vector<IMUData> GetVectorIMUData(void);
+    void AppendIMUDataToFront(keyframe* pPrevKF);
+    void ComputePreInt(void);
+
+    const IMUPreintegrator & GetIMUPreInt(void);
+
+    void UpdateNavStatePVRFromTcw(const cv::Mat &Tcw,const cv::Mat &Tbc);
+    void UpdatePoseFromNS(const cv::Mat &Tbc);
+    void UpdateNavState(const IMUPreintegrator& imupreint, const Vector3d& gw);
+    void SetNavState(const NavState& ns);
+    const NavState& GetNavState(void);
+    void SetNavStateVel(const Vector3d &vel);
+    void SetNavStatePos(const Vector3d &pos);
+    void SetNavStateRot(const Matrix3d &rot);
+    void SetNavStateRot(const Sophus::SO3 &rot);
+    void SetNavStateBiasGyr(const Vector3d &bg);
+    void SetNavStateBiasAcc(const Vector3d &ba);
+    void SetNavStateDeltaBg(const Vector3d &dbg);
+    void SetNavStateDeltaBa(const Vector3d &dba);
+
+    void SetInitialNavStateAndBias(const NavState& ns);
+
+    // Variables used by loop closing
+    NavState mNavStateGBA;       //mTcwGBA
+    NavState mNavStateBefGBA;    //mTcwBefGBA
+
+    // Variables used by the local mapping
+    long unsigned int mnBALocalForKF;
+    long unsigned int mnBAFixedForKF;
+    //-------------------------------------------------------------------------------------------
+    //-------------------------------------------------------------------------------------------
+    //-------------------------------------------------------------------------------------------
+
 
     /**
      * Constructor for building from a frame
@@ -324,6 +375,27 @@ private:
 
     //! flag which indicates this keyframe will be erased
     std::atomic<bool> will_be_erased_{false};
+
+//-------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------
+protected:
+    std::mutex mMutexPrevKF;
+    std::mutex mMutexNextKF;
+    keyframe* mpPrevKeyFrame;
+    keyframe* mpNextKeyFrame;
+
+    // P, V, R, bg, ba, delta_bg, delta_ba (delta_bx is for optimization update)
+    std::mutex mMutexNavState;
+    NavState mNavState;
+
+    // IMU Data from lask KeyFrame to this KeyFrame
+    std::mutex mMutexIMUData;
+    std::vector<IMUData> mvIMUData;
+    IMUPreintegrator mIMUPreInt;
+//-------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------
 };
 
 } // namespace data

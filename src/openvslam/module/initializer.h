@@ -4,6 +4,8 @@
 #include "openvslam/data/frame.h"
 #include "openvslam/initialize/base.h"
 
+#include "openvslam/IMU/imudata.h"
+
 #include <memory>
 
 namespace openvslam {
@@ -53,8 +55,15 @@ public:
     //! Get the initial frame ID which succeeded in initialization
     unsigned int get_initial_frame_id() const;
 
+    //-------------------------------------------------------------------------------------------
+    //-------------------------------------------------------------------------------------------
+    // Agregada imu
+    //-------------------------------------------------------------------------------------------
     //! Initialize with the current frame
-    bool initialize(data::frame& curr_frm);
+    bool initialize(data::frame& curr_frm, std::vector<IMUData>& mvIMUSinceLastKF);
+    //-------------------------------------------------------------------------------------------
+    //-------------------------------------------------------------------------------------------
+    //-------------------------------------------------------------------------------------------
 
 private:
     //! camera setup type
@@ -94,8 +103,15 @@ private:
     //! Try to initialize a map with monocular camera setup
     bool try_initialize_for_monocular(data::frame& curr_frm);
 
+    //-------------------------------------------------------------------------------------------
+    //-------------------------------------------------------------------------------------------
+    // Agregada IMU
+    //-------------------------------------------------------------------------------------------
     //! Create an initial map with monocular camera setup
-    bool create_map_for_monocular(data::frame& curr_frm);
+    bool create_map_for_monocular(data::frame& curr_frm, std::vector<IMUData>& mvIMUSinceLastKF);
+    //-------------------------------------------------------------------------------------------
+    //-------------------------------------------------------------------------------------------
+    //-------------------------------------------------------------------------------------------
 
     //! Scaling up or down a initial map
     void scale_map(data::keyframe* init_keyfrm, data::keyframe* curr_keyfrm, const double scale);

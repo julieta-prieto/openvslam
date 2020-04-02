@@ -1,0 +1,72 @@
+# Add sources
+target_sources(${PROJECT_NAME}
+               PRIVATE
+               #${CMAKE_CURRENT_SOURCE_DIR}/eigen_types.h
+               ${CMAKE_CURRENT_SOURCE_DIR}/base_edge.h
+               ${CMAKE_CURRENT_SOURCE_DIR}/base_binary_edge.h
+               ${CMAKE_CURRENT_SOURCE_DIR}/hyper_graph_action.cpp
+               ${CMAKE_CURRENT_SOURCE_DIR}/base_binary_edge.hpp
+               ${CMAKE_CURRENT_SOURCE_DIR}/hyper_graph_action.h
+               ${CMAKE_CURRENT_SOURCE_DIR}/base_multi_edge.h           
+               ${CMAKE_CURRENT_SOURCE_DIR}/hyper_graph.cpp
+               ${CMAKE_CURRENT_SOURCE_DIR}/base_multi_edge.hpp         
+               ${CMAKE_CURRENT_SOURCE_DIR}/hyper_graph.h
+               ${CMAKE_CURRENT_SOURCE_DIR}/base_unary_edge.h          
+               ${CMAKE_CURRENT_SOURCE_DIR}/linear_solver.h
+               ${CMAKE_CURRENT_SOURCE_DIR}/base_unary_edge.hpp         
+               ${CMAKE_CURRENT_SOURCE_DIR}/marginal_covariance_cholesky.cpp
+               ${CMAKE_CURRENT_SOURCE_DIR}/base_vertex.h               
+               ${CMAKE_CURRENT_SOURCE_DIR}/marginal_covariance_cholesky.h
+               ${CMAKE_CURRENT_SOURCE_DIR}/base_vertex.hpp             
+               ${CMAKE_CURRENT_SOURCE_DIR}/matrix_structure.cpp
+               ${CMAKE_CURRENT_SOURCE_DIR}/batch_stats.cpp             
+               ${CMAKE_CURRENT_SOURCE_DIR}/matrix_structure.h
+               ${CMAKE_CURRENT_SOURCE_DIR}/batch_stats.h               
+               ${CMAKE_CURRENT_SOURCE_DIR}/openmp_mutex.h
+               ${CMAKE_CURRENT_SOURCE_DIR}/block_solver.h              
+               ${CMAKE_CURRENT_SOURCE_DIR}/block_solver.hpp            
+               ${CMAKE_CURRENT_SOURCE_DIR}/parameter.cpp               
+               ${CMAKE_CURRENT_SOURCE_DIR}/parameter.h                 
+               ${CMAKE_CURRENT_SOURCE_DIR}/cache.cpp                   
+               ${CMAKE_CURRENT_SOURCE_DIR}/cache.h
+               ${CMAKE_CURRENT_SOURCE_DIR}/optimizable_graph.cpp       
+               ${CMAKE_CURRENT_SOURCE_DIR}/optimizable_graph.h         
+               ${CMAKE_CURRENT_SOURCE_DIR}/solver.cpp                  
+               ${CMAKE_CURRENT_SOURCE_DIR}/solver.h
+               ${CMAKE_CURRENT_SOURCE_DIR}/creators.h                 
+               ${CMAKE_CURRENT_SOURCE_DIR}/optimization_algorithm_factory.cpp
+               ${CMAKE_CURRENT_SOURCE_DIR}/estimate_propagator.cpp     
+               ${CMAKE_CURRENT_SOURCE_DIR}/optimization_algorithm_factory.h
+               ${CMAKE_CURRENT_SOURCE_DIR}/estimate_propagator.h       
+               ${CMAKE_CURRENT_SOURCE_DIR}/factory.cpp                 
+               ${CMAKE_CURRENT_SOURCE_DIR}/optimization_algorithm_property.h
+               ${CMAKE_CURRENT_SOURCE_DIR}/factory.h                   
+               ${CMAKE_CURRENT_SOURCE_DIR}/sparse_block_matrix.h
+               ${CMAKE_CURRENT_SOURCE_DIR}/sparse_optimizer.cpp  
+               ${CMAKE_CURRENT_SOURCE_DIR}/sparse_block_matrix.hpp
+               ${CMAKE_CURRENT_SOURCE_DIR}/sparse_optimizer.h
+               ${CMAKE_CURRENT_SOURCE_DIR}/hyper_dijkstra.cpp 
+               ${CMAKE_CURRENT_SOURCE_DIR}/hyper_dijkstra.h
+               ${CMAKE_CURRENT_SOURCE_DIR}/parameter_container.cpp     
+               ${CMAKE_CURRENT_SOURCE_DIR}/parameter_container.h
+               ${CMAKE_CURRENT_SOURCE_DIR}/optimization_algorithm.cpp 
+               ${CMAKE_CURRENT_SOURCE_DIR}/optimization_algorithm.h
+               ${CMAKE_CURRENT_SOURCE_DIR}/optimization_algorithm_with_hessian.cpp 
+               ${CMAKE_CURRENT_SOURCE_DIR}/optimization_algorithm_with_hessian.h
+               ${CMAKE_CURRENT_SOURCE_DIR}/optimization_algorithm_levenberg.cpp 
+               ${CMAKE_CURRENT_SOURCE_DIR}/optimization_algorithm_levenberg.h
+               ${CMAKE_CURRENT_SOURCE_DIR}/jacobian_workspace.cpp 
+               ${CMAKE_CURRENT_SOURCE_DIR}/jacobian_workspace.h
+               ${CMAKE_CURRENT_SOURCE_DIR}/robust_kernel.cpp 
+               ${CMAKE_CURRENT_SOURCE_DIR}/robust_kernel.h
+               ${CMAKE_CURRENT_SOURCE_DIR}/robust_kernel_factory.cpp
+               ${CMAKE_CURRENT_SOURCE_DIR}/robust_kernel_factory.h
+               ${CMAKE_CURRENT_SOURCE_DIR}/robust_kernel_impl.cpp 
+               ${CMAKE_CURRENT_SOURCE_DIR}/robust_kernel_impl.h
+               ${CMAKE_CURRENT_SOURCE_DIR}/optimization_algorithm_gauss_newton.cpp 
+               ${CMAKE_CURRENT_SOURCE_DIR}/optimization_algorithm_gauss_newton.h)
+
+# Install headers
+file(GLOB HEADERS "${CMAKE_CURRENT_SOURCE_DIR}/*.h")
+install(FILES ${HEADERS}
+        DESTINATION ${OPENVSLAM_INCLUDE_INSTALL_DIR}/optimize/g2o/core)

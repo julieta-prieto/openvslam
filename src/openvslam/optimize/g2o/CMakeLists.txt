@@ -14,3 +14,7 @@ install(FILES ${HEADERS}
 # Append subdirectory
 add_subdirectory(se3)
 add_subdirectory(sim3)
+add_subdirectory(core)
+add_subdirectory(solvers)
+add_subdirectory(stuff)
+add_subdirectory(types)

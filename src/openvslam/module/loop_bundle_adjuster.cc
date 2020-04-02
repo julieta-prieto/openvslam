@@ -5,6 +5,17 @@
 #include "openvslam/module/loop_bundle_adjuster.h"
 #include "openvslam/optimize/global_bundle_adjuster.h"
 
+//-------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------
+#include "openvslam/global_optimization_module.h"
+#include "openvslam/IMU/configparam.h"
+#include <opencv2/core/eigen.hpp>
+#include "openvslam/util/converter.h"
+//-------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------
+
 #include <thread>
 
 #include <spdlog/spdlog.h>
@@ -35,6 +46,13 @@ bool loop_bundle_adjuster::is_running() const {
 }
 
 void loop_bundle_adjuster::optimize(const unsigned int identifier) {
+    //-------------------------------------------------------------------------------------------
+    //-------------------------------------------------------------------------------------------
+    //-------------------------------------------------------------------------------------------
+    std::chrono::steady_clock::time_point begin= std::chrono::steady_clock::now();
+    //-------------------------------------------------------------------------------------------
+    //-------------------------------------------------------------------------------------------
+    //-------------------------------------------------------------------------------------------
     spdlog::info("start loop bundle adjustment");
 
     unsigned int num_exec_loop_BA = 0;
@@ -44,9 +62,18 @@ void loop_bundle_adjuster::optimize(const unsigned int identifier) {
         abort_loop_BA_ = false;
         num_exec_loop_BA = num_exec_loop_BA_;
     }
-
-    const auto global_bundle_adjuster = optimize::global_bundle_adjuster(map_db_, num_iter_, false);
-    global_bundle_adjuster.optimize(identifier, &abort_loop_BA_);
+    //-------------------------------------------------------------------------------------------
+    //-------------------------------------------------------------------------------------------
+    //-------------------------------------------------------------------------------------------
+    #ifndef TRACK_WITH_IMU
+        const auto global_bundle_adjuster = optimize::global_bundle_adjuster(map_db_, num_iter_, false);
+        global_bundle_adjuster.optimize(identifier, &abort_loop_BA_);
+    #else
+        global_optimization_module::GlobalBundleAdjustmentNavState(map_db_,mapper_->GetGravityVec(),10,&abort_loop_BA_,identifier,false);
+    #endif
+    //-------------------------------------------------------------------------------------------
+    //-------------------------------------------------------------------------------------------
+    //-------------------------------------------------------------------------------------------
 
     {
         std::lock_guard<std::mutex> lock1(mtx_thread_);
@@ -68,6 +95,13 @@ void loop_bundle_adjuster::optimize(const unsigned int identifier) {
         while (!mapper_->is_paused() && !mapper_->is_terminated()) {
             std::this_thread::sleep_for(std::chrono::microseconds(1000));
         }
+        //-------------------------------------------------------------------------------------------
+        //-------------------------------------------------------------------------------------------
+        //-------------------------------------------------------------------------------------------
+        cv::Mat cvTbc = ConfigParam::GetMatTbc();
+        //-------------------------------------------------------------------------------------------
+        //-------------------------------------------------------------------------------------------
+        //-------------------------------------------------------------------------------------------
 
         std::lock_guard<std::mutex> lock2(data::map_database::mtx_database_);
 
@@ -77,6 +111,23 @@ void loop_bundle_adjuster::optimize(const unsigned int identifier) {
         while (!keyfrms_to_check.empty()) {
             auto parent = keyfrms_to_check.front();
             const Mat44_t cam_pose_wp = parent->get_cam_pose_inv();
+            //-------------------------------------------------------------------------------------------
+            //-------------------------------------------------------------------------------------------
+            //-------------------------------------------------------------------------------------------
+            const NavState& NS = parent->GetNavState();
+            //Debug log
+            if(parent->loop_BA_identifier_ == identifier)
+            {
+                cv::Mat Twc;
+                eigen2cv(cam_pose_wp, Twc);
+                cv::Mat tTwb1 = Twc*ConfigParam::GetMatT_cb();
+                if((util::converter::toVector3d(tTwb1.rowRange(0,3).col(3))-NS.Get_P()).norm()>1e-6)
+                    std::cout<<"Twc*Tcb != NavState for GBA KFs, id "<<parent->id_<<": "<<tTwb1.rowRange(0,3).col(3).t()<<"/"<<NS.Get_P().transpose()<<std::endl;
+            }
+            else std::cout<<"parent->loop_BA_identifier_ != identifier???"<<std::endl;
+            //-------------------------------------------------------------------------------------------
+            //-------------------------------------------------------------------------------------------
+            //-------------------------------------------------------------------------------------------
 
             const auto children = parent->graph_node_->get_spanning_children();
             for (auto child : children) {
@@ -90,6 +141,26 @@ void loop_bundle_adjuster::optimize(const unsigned int identifier) {
                     child->cam_pose_cw_after_loop_BA_ = cam_pose_cp * parent->cam_pose_cw_after_loop_BA_;
                     // check as `child` has been corrected
                     child->loop_BA_identifier_ = identifier;
+
+                    //-------------------------------------------------------------------------------------------
+                    //-------------------------------------------------------------------------------------------
+                    //-------------------------------------------------------------------------------------------
+                    // Set NavStateGBA and correct the P/V/R
+                    child->mNavStateGBA = child->GetNavState();
+                    cv::Mat aux;
+                    eigen2cv(child->cam_pose_cw_after_loop_BA_, aux);
+                    cv::Mat TwbGBA = util::converter::toCvMatInverse(cvTbc*aux);
+                    Matrix3d RwbGBA = util::converter::toMatrix3d(TwbGBA.rowRange(0,3).colRange(0,3));
+                    Vector3d PwbGBA = util::converter::toVector3d(TwbGBA.rowRange(0,3).col(3));
+                    Matrix3d Rw1 = child->mNavStateGBA.Get_RotMatrix();
+                    Vector3d Vw1 = child->mNavStateGBA.Get_V();
+                    Vector3d Vw2 = RwbGBA*Rw1.transpose()*Vw1;   // bV1 = bV2 ==> Rwb1^T*wV1 = Rwb2^T*wV2 ==> wV2 = Rwb2*Rwb1^T*wV1
+                    child->mNavStateGBA.Set_Pos(PwbGBA);
+                    child->mNavStateGBA.Set_Rot(RwbGBA);
+                    child->mNavStateGBA.Set_Vel(Vw2);
+                    //-------------------------------------------------------------------------------------------
+                    //-------------------------------------------------------------------------------------------
+                    //-------------------------------------------------------------------------------------------
                 }
 
                 // need updating
@@ -98,10 +169,33 @@ void loop_bundle_adjuster::optimize(const unsigned int identifier) {
 
             // temporally store the camera pose BEFORE correction (for correction of landmark positions)
             parent->cam_pose_cw_before_BA_ = parent->get_cam_pose();
+            //-------------------------------------------------------------------------------------------
+            //-------------------------------------------------------------------------------------------
+            //-------------------------------------------------------------------------------------------
             // update the camera pose
-            parent->set_cam_pose(parent->cam_pose_cw_after_loop_BA_);
+            //parent->set_cam_pose(parent->cam_pose_cw_after_loop_BA_);
+            parent->mNavStateBefGBA = parent->GetNavState();
+            parent->SetNavState(parent->mNavStateGBA);
+            parent->UpdatePoseFromNS(cvTbc);
+            //-------------------------------------------------------------------------------------------
+            //-------------------------------------------------------------------------------------------
+            //-------------------------------------------------------------------------------------------
             // finish updating
             keyfrms_to_check.pop_front();
+
+            //-------------------------------------------------------------------------------------------
+            //-------------------------------------------------------------------------------------------
+            //-------------------------------------------------------------------------------------------
+            //Test log
+            cv::Mat aux1;
+            eigen2cv(parent->get_cam_pose_inv(), aux1);
+            cv::Mat tTwb = aux1*ConfigParam::GetMatT_cb();
+            Vector3d tPwb = util::converter::toVector3d(tTwb.rowRange(0,3).col(3));
+            if( (tPwb-parent->GetNavState().Get_P()).norm()>1e-6 )
+                std::cerr<<"parent PoseInverse Pwb != NavState.P ?"<<tPwb.transpose()<<"/"<<parent->GetNavState().Get_P().transpose()<<std::endl;
+            //-------------------------------------------------------------------------------------------
+            //-------------------------------------------------------------------------------------------
+            //-------------------------------------------------------------------------------------------
         }
 
         // update the positions of the landmarks
@@ -139,10 +233,23 @@ void loop_bundle_adjuster::optimize(const unsigned int identifier) {
         }
 
         mapper_->resume();
+
+        // Map updated, set flag for Tracking
+        //SetMapUpdateFlagInTracking(true);
+
         loop_BA_is_running_ = false;
 
         spdlog::info("updated the map");
     }
+
+    //-------------------------------------------------------------------------------------------
+    //-------------------------------------------------------------------------------------------
+    //-------------------------------------------------------------------------------------------
+    std::chrono::steady_clock::time_point end= std::chrono::steady_clock::now();
+    std::cout << "globalBA Time difference = " << std::chrono::duration_cast<std::chrono::microseconds>(end - begin).count() <<std::endl;
+    //-------------------------------------------------------------------------------------------
+    //-------------------------------------------------------------------------------------------
+    //-------------------------------------------------------------------------------------------
 }
 
 } // namespace module

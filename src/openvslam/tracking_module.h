@@ -13,6 +13,12 @@
 #include <opencv2/core/core.hpp>
 #include <opencv2/features2d/features2d.hpp>
 
+#define IMU_SAFE_WINDOW 3 // in seconds
+
+#include "openvslam/IMU/imudata.h"
+//#include "openvslam/IMU/IMUPreintegrator.h"
+#include "openvslam/IMU/configparam.h"
+
 namespace openvslam {
 
 class system;
@@ -33,19 +39,70 @@ enum class tracker_state_t {
     NotInitialized,
     Initializing,
     Tracking,
-    Lost
+    Lost,
+    //-------------------------------------------------------------------------------------------
+    //-------------------------------------------------------------------------------------------
+    //-------------------------------------------------------------------------------------------
+    ImuOnlyTracking
+    //-------------------------------------------------------------------------------------------
+    //-------------------------------------------------------------------------------------------
+    //-------------------------------------------------------------------------------------------
 };
 
 class tracking_module {
 public:
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
+    //-------------------------------------------------------------------------------------------
+    //-------------------------------------------------------------------------------------------
+    //-------------------------------------------------------------------------------------------
+    // ADDED LAST PARAMETER FROM THE ORGINAL
     //! Constructor
     tracking_module(const std::shared_ptr<config>& cfg, system* system, data::map_database* map_db,
-                    data::bow_vocabulary* bow_vocab, data::bow_database* bow_db);
+                    data::bow_vocabulary* bow_vocab, data::bow_database* bow_db, ConfigParam* pParams);
+    //-------------------------------------------------------------------------------------------
+    //-------------------------------------------------------------------------------------------
+    //-------------------------------------------------------------------------------------------
 
     //! Destructor
     ~tracking_module();
+
+    //-------------------------------------------------------------------------------------------
+    //-------------------------------------------------------------------------------------------
+    //-------------------------------------------------------------------------------------------
+    // Flags for relocalization. Create new KF once bias re-computed & flag for preparation for bias re-compute
+    bool mbCreateNewKFAfterReloc;
+    bool mbRelocBiasPrepare;
+    void RecomputeIMUBiasAndCurrentNavstate(NavState& nscur);
+    // 20 Frames are used to compute bias
+    std::vector<data::frame> mv20FramesReloc;
+
+    // Predict the NavState of Current Frame by IMU
+    void PredictNavStateByIMU(bool bMapUpdated);
+    IMUPreintegrator mIMUPreIntInTrack;
+
+    bool TrackWithIMU(bool bMapUpdated=false);
+    bool TrackLocalMapWithIMU(bool bMapUpdated=false);
+
+    ConfigParam* mpParams;
+    Mat44_t track_monocular_image_VI(const cv::Mat& img, const std::vector<IMUData> &vimu, const double timestamp, const cv::Mat& mask = cv::Mat{});
+    //cv::Mat GrabImageMonoVI(const cv::Mat &im, const std::vector<IMUData> &vimu, const double &timestamp);
+    // IMU Data since last KF. Append when new data is provided
+    // Should be cleared in 1. initialization beginning, 2. new keyframe created.
+    std::vector<IMUData> mvIMUSinceLastKF;
+    // Predict the NavState of Current Frame by IMU
+    IMUPreintegrator GetIMUPreIntSinceLastKF(data::frame* pCurF, data::keyframe* pLastKF, const std::vector<IMUData>& vIMUSInceLastKF);
+    IMUPreintegrator GetIMUPreIntSinceLastFrame(data::frame* pCurF, data::frame* pLastF);
+
+    bool GetVINSInited();
+    cv::Mat GetGravityVec();
+    void saveDebugStates(const std::string &IMUfilename, const std::string &CVMfilename);
+    void saveIMUDataPerImage(bool isKeyFrame);
+
+    int trackingcounts=0;
+    //-------------------------------------------------------------------------------------------
+    //-------------------------------------------------------------------------------------------
+    //-------------------------------------------------------------------------------------------
 
     //! Set the mapping module
     void set_mapping_module(mapping_module* mapper);
@@ -123,6 +180,15 @@ public:
     //! elapsed microseconds for each tracking
     double elapsed_ms_ = 0.0;
 
+    //-------------------------------------------------------------------------------------------
+    //-------------------------------------------------------------------------------------------
+    //-------------------------------------------------------------------------------------------
+    //! reference keyframe
+    data::keyframe* ref_keyfrm_public_ = nullptr;
+    //-------------------------------------------------------------------------------------------
+    //-------------------------------------------------------------------------------------------
+    //-------------------------------------------------------------------------------------------
+
 protected:
     //-----------------------------------------
     // tracking processes
@@ -178,7 +244,7 @@ protected:
     feature::orb_extractor* extractor_left_ = nullptr;
     //! ORB extractor for right image
     feature::orb_extractor* extractor_right_ = nullptr;
-    //! ORB extractor only when used in initializing
+    //! ORB extractor  when used in initializing
     feature::orb_extractor* ini_extractor_left_ = nullptr;
 
     //! map_database
@@ -253,6 +319,17 @@ protected:
 
     //! Pause of the tracking module is requested or not
     bool pause_is_requested_ = false;
+
+    //-------------------------------------------------------------------------------------------
+    //-------------------------------------------------------------------------------------------
+    //-------------------------------------------------------------------------------------------
+    bool mIsFirstDebug;
+    bool mbIsKeyframeTracked;
+    double mTimestampLastLost;
+    cv::Mat mK;
+    //-------------------------------------------------------------------------------------------
+    //-------------------------------------------------------------------------------------------
+    //-------------------------------------------------------------------------------------------
 };
 
 } // namespace openvslam

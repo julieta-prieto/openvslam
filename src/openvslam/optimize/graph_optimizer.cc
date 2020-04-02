@@ -6,6 +6,10 @@
 #include "openvslam/optimize/g2o/sim3/graph_opt_edge.h"
 #include "openvslam/util/converter.h"
 
+#include "openvslam/IMU/configparam.h"
+//#include "openvslam/global_optimization_module.h"
+#include <opencv2/core/eigen.hpp>
+
 #include <Eigen/StdVector>
 #include <g2o/core/solver.h>
 #include <g2o/core/block_solver.h>
@@ -239,6 +243,14 @@ void graph_optimizer::optimize(data::keyframe* loop_keyfrm, data::keyframe* curr
     {
         std::lock_guard<std::mutex> lock(data::map_database::mtx_database_);
 
+        //-------------------------------------------------------------------------------------------
+        //-------------------------------------------------------------------------------------------
+        //-------------------------------------------------------------------------------------------
+        cv::Mat Tbc = ConfigParam::GetMatTbc();
+        //-------------------------------------------------------------------------------------------
+        //-------------------------------------------------------------------------------------------
+        //-------------------------------------------------------------------------------------------
+
         // 点群の位置修正のために，全keyframeの姿勢(修正後)を保存しておく
         std::vector<::g2o::Sim3, Eigen::aligned_allocator<::g2o::Sim3>> corrected_Sim3s_wc(max_keyfrm_id + 1);
 
@@ -254,6 +266,17 @@ void graph_optimizer::optimize(data::keyframe* loop_keyfrm, data::keyframe* curr
 
             const Mat44_t cam_pose_cw = util::converter::to_eigen_cam_pose(rot_cw, trans_cw);
             keyfrm->set_cam_pose(cam_pose_cw);
+
+            //-------------------------------------------------------------------------------------------
+            //-------------------------------------------------------------------------------------------
+            //-------------------------------------------------------------------------------------------
+            // Update P/V/R in NavState
+            cv::Mat Tiw;
+            eigen2cv(cam_pose_cw, Tiw);
+            keyfrm->UpdateNavStatePVRFromTcw(Tiw,Tbc);
+            //-------------------------------------------------------------------------------------------
+            //-------------------------------------------------------------------------------------------
+            //-------------------------------------------------------------------------------------------
 
             corrected_Sim3s_wc.at(id) = corrected_Sim3_cw.inverse();
         }
@@ -278,6 +301,10 @@ void graph_optimizer::optimize(data::keyframe* loop_keyfrm, data::keyframe* curr
             lm->update_normal_and_depth();
         }
     }
+    /*if(global_optimizer)
+    {
+        global_optimizer->SetMapUpdateFlagInTracking(true);
+    }*/
 }
 
 } // namespace optimize

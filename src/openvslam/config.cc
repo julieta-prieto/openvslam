@@ -50,6 +50,7 @@ config::config(const YAML::Node& yaml_node, const std::string& config_file_path)
         throw;
     }
 
+
     //=====================//
     // Load ORB Parameters //
     //=====================//

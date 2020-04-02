@@ -7,6 +7,8 @@
 #include "openvslam/data/map_database.h"
 #include "openvslam/util/converter.h"
 
+#include <opencv2/core/eigen.hpp>
+
 #include <spdlog/spdlog.h>
 #include <nlohmann/json.hpp>
 
@@ -14,6 +16,57 @@ namespace openvslam {
 namespace data {
 
 std::mutex map_database::mtx_database_;
+
+//-------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------
+bool  KFIdComapre::operator()(const data::keyframe* kfleft,const data::keyframe* kfright) const
+{
+    return kfleft->id_ < kfright->id_;
+}
+
+void map_database::UpdateScale(const double &scale)
+{
+    std::unique_lock<std::mutex> lock(mtx_database_);
+
+    for (auto keyframe : keyframes_) 
+    {
+        data::keyframe* pKF = keyframe.second;
+        pKF->get_cam_pose();
+
+        cv::Mat Tcw;
+        eigen2cv(pKF->get_cam_pose(), Tcw);
+        //cv::Mat Tcw = pKF->GetPose();
+        cv::Mat tcw = Tcw.rowRange(0,3).col(3)*scale;
+        tcw.copyTo(Tcw.rowRange(0,3).col(3));
+        //pKF->SetPose(Tcw);
+        Mat44_t cam_pose;
+        cam_pose = util::converter::cvMat4_to_Mat44_t(Tcw);
+        pKF->set_cam_pose(cam_pose);
+    }
+
+    for (auto landmark : landmarks_) 
+    {
+        data::landmark* pMP = landmark.second;
+        pMP->set_pos_in_world(pMP->get_pos_in_world()*scale);
+    }
+    std::cout<<std::endl<<"... Map scale updated ..."<<std::endl<<std::endl;
+}
+
+std::vector<cv::Mat> map_database::GetIMUTrackedFrames()
+{
+    std::unique_lock<std::mutex> lock(mtx_map_access_);
+    return std::vector<cv::Mat>(mvIMUTrackedFrames.begin(),mvIMUTrackedFrames.end());
+}
+
+void map_database::AddIMUTrackedFrames(cv::Mat pose)
+{
+    std::unique_lock<std::mutex> lock(mtx_map_access_);
+    mvIMUTrackedFrames.push_back(pose.clone());
+}
+//-------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------
 
 map_database::map_database() {
     spdlog::debug("CONSTRUCT: data::map_database");
@@ -114,6 +167,7 @@ void map_database::clear() {
     max_keyfrm_id_ = 0;
     local_landmarks_.clear();
     origin_keyfrm_ = nullptr;
+    mvpKeyFrameOrigins.clear();
 
     frm_stats_.clear();
 

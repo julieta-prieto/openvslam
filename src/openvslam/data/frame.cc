@@ -17,6 +17,167 @@ namespace data {
 
 std::atomic<unsigned int> frame::next_id_{0};
 
+//-------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------
+
+float frame::fx;
+float frame::fy;
+float frame::cx;
+float frame::cy;
+
+void frame::ComputeIMUPreIntSinceLastFrame(const frame* pLastF, IMUPreintegrator& IMUPreInt) const
+{
+    // Reset pre-integrator first
+    IMUPreInt.reset();
+
+    const std::vector<IMUData>& vIMUSInceLastFrame = mvIMUDataSinceLastFrame;
+
+    Vector3d bg = pLastF->GetNavState().Get_BiasGyr();
+    Vector3d ba = pLastF->GetNavState().Get_BiasAcc();
+
+    // remember to consider the gap between the last KF and the first IMU
+    {
+        const IMUData& imu = vIMUSInceLastFrame.front();
+        double dt = imu._t - pLastF->timestamp_;
+        IMUPreInt.update(imu._g - bg, imu._a - ba, dt);
+
+        // Test log
+        if(dt < 0)
+        {
+            std::cerr<<std::fixed<<std::setprecision(3)<<"dt = "<<dt<<", this frame vs last imu time: "<<pLastF->timestamp_<<" vs "<<imu._t<<std::endl;
+            std::cerr.unsetf ( std::ios::showbase );                // deactivate showbase
+        }
+    }
+    // integrate each imu
+    for(size_t i=0; i<vIMUSInceLastFrame.size(); i++)
+    {
+        const IMUData& imu = vIMUSInceLastFrame[i];
+        double nextt;
+        if(i==vIMUSInceLastFrame.size()-1)
+            nextt = timestamp_;         // last IMU, next is this KeyFrame
+        else
+            nextt = vIMUSInceLastFrame[i+1]._t;  // regular condition, next is imu data
+
+        // delta time
+        double dt = nextt - imu._t;
+        // update pre-integrator
+        IMUPreInt.update(imu._g - bg, imu._a - ba, dt);
+
+        // Test log
+        if(dt <= 0)
+        {
+            std::cerr<<std::fixed<<std::setprecision(3)<<"dt = "<<dt<<", this vs next time: "<<imu._t<<" vs "<<nextt<<std::endl;
+            std::cerr.unsetf ( std::ios::showbase );                // deactivate showbase
+        }
+    }
+}
+
+void frame::UpdatePoseFromNS(const cv::Mat &Tbc)
+{
+    cv::Mat Rbc = Tbc.rowRange(0,3).colRange(0,3).clone();
+    cv::Mat Pbc = Tbc.rowRange(0,3).col(3).clone();
+
+    cv::Mat Rwb = util::converter::toCvMat(mNavState.Get_RotMatrix());
+    cv::Mat Pwb = util::converter::toCvMat(mNavState.Get_P());
+
+    cv::Mat Rcw = (Rwb*Rbc).t();
+    cv::Mat Pwc = Rwb*Pbc + Pwb;
+    cv::Mat Pcw = -Rcw*Pwc;
+
+    cv::Mat Tcw = cv::Mat::eye(4,4,CV_32F);
+    Rcw.copyTo(Tcw.rowRange(0,3).colRange(0,3));
+    Pcw.copyTo(Tcw.rowRange(0,3).col(3));
+
+    // Convert the opencv matrix to a Mat44_t openvslam standard matrix
+    Mat44_t cam_pose;
+    cam_pose = util::converter::cvMat4_to_Mat44_t(Tcw);
+
+    set_cam_pose(cam_pose);
+}
+
+void frame::UpdateNavState(const IMUPreintegrator& imupreint, const Vector3d& gw)
+{
+    util::converter::updateNS(mNavState,imupreint,gw);
+}
+
+const NavState& frame::GetNavState(void) const
+{
+    return mNavState;
+}
+
+void frame::SetInitialNavStateAndBias(const NavState& ns)
+{
+    mNavState = ns;
+    // Set bias as bias+delta_bias, and reset the delta_bias term
+    mNavState.Set_BiasGyr(ns.Get_BiasGyr()+ns.Get_dBias_Gyr());
+    mNavState.Set_BiasAcc(ns.Get_BiasAcc()+ns.Get_dBias_Acc());
+    mNavState.Set_DeltaBiasGyr(Vector3d::Zero());
+    mNavState.Set_DeltaBiasAcc(Vector3d::Zero());
+}
+
+
+void frame::SetNavStateBiasGyr(const Vector3d &bg)
+{
+    mNavState.Set_BiasGyr(bg);
+}
+
+void frame::SetNavStateBiasAcc(const Vector3d &ba)
+{
+    mNavState.Set_BiasAcc(ba);
+}
+
+void frame::SetNavState(const NavState& ns)
+{
+    mNavState = ns;
+}
+
+frame::frame(const cv::Mat& img_gray, const double &timestamp, const std::vector<IMUData> &vimu, feature::orb_extractor* extractor, bow_vocabulary* bow_vocab,
+             camera::base* camera, const float depth_thr, cv::Mat &K, const cv::Mat& mask, data::keyframe* pLastKF)
+    :id_(next_id_++), bow_vocab_(bow_vocab), extractor_(extractor), extractor_right_(nullptr),
+      timestamp_(timestamp), camera_(camera), depth_thr_(depth_thr), mK(K.clone())
+{
+    // Copy IMU data
+    mvIMUDataSinceLastFrame = vimu;
+
+    // Get ORB scale
+    update_orb_info();
+
+    // Extract ORB feature
+    extract_orb(img_gray, mask);
+    num_keypts_ = keypts_.size();
+    if (keypts_.empty()) {
+        spdlog::warn("frame {}: cannot extract any keypoints", id_);
+        return;
+    }
+
+    // Undistort keypoints
+    camera_->undistort_keypoints(keypts_, undist_keypts_);
+
+    // Ignore stereo parameters
+    stereo_x_right_ = std::vector<float>(num_keypts_, -1);
+    depths_ = std::vector<float>(num_keypts_, -1);
+
+    // Convert to bearing vector
+    camera->convert_keypoints_to_bearings(undist_keypts_, bearings_);
+
+    // Initialize association with 3D points
+    landmarks_ = std::vector<landmark*>(num_keypts_, nullptr);
+    outlier_flags_ = std::vector<bool>(num_keypts_, false);
+
+    // Assign all the keypoints into grid
+    assign_keypoints_to_grid(camera_, undist_keypts_, keypt_indices_in_cells_);
+
+    //Añadido por mi
+    fx = K.at<float>(0,0);
+    /*fy = K.at<float>(1,1);
+    cx = K.at<float>(0,2);
+    cy = K.at<float>(1,2);*/
+}
+//-------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------
+
 frame::frame(const cv::Mat& img_gray, const double timestamp,
              feature::orb_extractor* extractor, bow_vocabulary* bow_vocab,
              camera::base* camera, const float depth_thr,

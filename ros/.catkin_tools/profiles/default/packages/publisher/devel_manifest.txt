@@ -1,0 +1,7 @@
+publisher
+/home/julieta/openvslam/ros/devel/.private/publisher/cmake.lock /home/julieta/openvslam/ros/devel/./cmake.lock
+/home/julieta/openvslam/ros/devel/.private/publisher/lib/pkgconfig/publisher.pc /home/julieta/openvslam/ros/devel/lib/pkgconfig/publisher.pc
+/home/julieta/openvslam/ros/devel/.private/publisher/lib/publisher/video /home/julieta/openvslam/ros/devel/lib/publisher/video
+/home/julieta/openvslam/ros/devel/.private/publisher/lib/publisher/image /home/julieta/openvslam/ros/devel/lib/publisher/image
+/home/julieta/openvslam/ros/devel/.private/publisher/share/publisher/cmake/publisherConfig-version.cmake /home/julieta/openvslam/ros/devel/share/publisher/cmake/publisherConfig-version.cmake
+/home/julieta/openvslam/ros/devel/.private/publisher/share/publisher/cmake/publisherConfig.cmake /home/julieta/openvslam/ros/devel/share/publisher/cmake/publisherConfig.cmake

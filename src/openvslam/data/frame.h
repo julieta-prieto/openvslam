@@ -12,6 +12,12 @@
 #include <opencv2/core.hpp>
 #include <Eigen/Core>
 
+#include "openvslam/IMU/imudata.h"
+#include "openvslam/IMU/NavState.h"
+#include "openvslam/IMU/IMUPreintegrator.h"
+//#include "openvslam/data/keyframe.h"
+
+
 #ifdef USE_DBOW2
 #include <DBoW2/BowVector.h>
 #include <DBoW2/FeatureVector.h>
@@ -42,6 +48,55 @@ public:
 
     bool operator==(const frame& frm) { return this->id_ == frm.id_; }
     bool operator!=(const frame& frm) { return !(*this == frm); }
+
+    //-------------------------------------------------------------------------------------------
+    //-------------------------------------------------------------------------------------------
+    //-------------------------------------------------------------------------------------------
+    /**
+     * Constructor for Monocular VI frame
+     * @param img_gray
+     * @param timestamp
+     * @param vimu
+     * @param extractor
+     * @param bow_vocab
+     * @param camera
+     * @param depth_thr
+     * @param mask
+     * @param pLastKF
+    */
+    frame(const cv::Mat& img_gray, const double &timestamp, const std::vector<IMUData> &vimu,
+          feature::orb_extractor* extractor, bow_vocabulary* bow_vocab,
+          camera::base* camera, const float depth_thr, cv::Mat &K,
+          const cv::Mat& mask = cv::Mat{}, data::keyframe* pLastKF=NULL);
+    void ComputeIMUPreIntSinceLastFrame(const frame* pLastF, IMUPreintegrator& imupreint) const;
+    void UpdatePoseFromNS(const cv::Mat &Tbc);
+    void SetInitialNavStateAndBias(const NavState& ns);
+    void UpdateNavState(const IMUPreintegrator& imupreint, const Vector3d& gw);
+    const NavState& GetNavState(void) const;
+    void SetNavState(const NavState& ns);
+    void SetNavStateBiasGyr(const Vector3d &bg);
+    void SetNavStateBiasAcc(const Vector3d &ba);
+
+    // IMU Data from last Frame to this Frame
+    std::vector<IMUData> mvIMUDataSinceLastFrame;
+
+    // For pose optimization, use ad prior and prior information(inverse covariance)
+#ifndef NOT_UPDATE_GYRO_BIAS
+    Matrix<double,15,15> mMargCovInv;
+#else
+    Matrix<double,12,12> mMargCovInv;
+#endif
+    NavState mNavStatePrior;
+
+    // Calibration matrix
+    cv::Mat mK;
+    static float fx;
+    static float fy;
+    static float cx;
+    static float cy;
+    //-------------------------------------------------------------------------------------------
+    //-------------------------------------------------------------------------------------------
+    //-------------------------------------------------------------------------------------------
 
     /**
      * Constructor for monocular frame
@@ -272,6 +327,9 @@ private:
     Mat33_t rot_wc_;
     //! translation: camera -> world
     Vec3_t cam_center_;
+
+protected:
+    NavState mNavState;    
 };
 
 } // namespace data

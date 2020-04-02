@@ -7,6 +7,7 @@ class mapping_module;
 
 namespace data {
 class map_database;
+class global_optimization_module;
 } // namespace data
 
 namespace module {

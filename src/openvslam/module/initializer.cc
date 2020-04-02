@@ -52,23 +52,33 @@ unsigned int initializer::get_initial_frame_id() const {
     return init_frm_id_;
 }
 
-bool initializer::initialize(data::frame& curr_frm) {
+bool initializer::initialize(data::frame& curr_frm, std::vector<IMUData>& mvIMUSinceLastKF) {
     switch (setup_type_) {
         case camera::setup_type_t::Monocular: {
+            //std::cout << "DEBUG 2" << std::endl;
             // construct an initializer if not constructed
             if (state_ == initializer_state_t::NotReady) {
+                //std::cout << "DEBUG 3" << std::endl;
+                //-------------------------------------------------------------------------------------------
+                //-------------------------------------------------------------------------------------------
+                //-------------------------------------------------------------------------------------------
+                mvIMUSinceLastKF.clear();
+                //-------------------------------------------------------------------------------------------
+                //-------------------------------------------------------------------------------------------
+                //-------------------------------------------------------------------------------------------
                 create_initializer(curr_frm);
                 return false;
             }
 
             // try to initialize
             if (!try_initialize_for_monocular(curr_frm)) {
+                //std::cout << "DEBUG 4" << std::endl;
                 // failed
                 return false;
             }
 
             // create new map if succeeded
-            create_map_for_monocular(curr_frm);
+            create_map_for_monocular(curr_frm, mvIMUSinceLastKF);
             break;
         }
         case camera::setup_type_t::Stereo:
@@ -151,7 +161,7 @@ bool initializer::try_initialize_for_monocular(data::frame& curr_frm) {
     return initializer_->initialize(curr_frm, init_matches_);
 }
 
-bool initializer::create_map_for_monocular(data::frame& curr_frm) {
+bool initializer::create_map_for_monocular(data::frame& curr_frm, std::vector<IMUData>& mvIMUSinceLastKF) {
     assert(state_ == initializer_state_t::Initializing);
 
     eigen_alloc_vector<Vec3_t> init_triangulated_pts;
@@ -181,10 +191,35 @@ bool initializer::create_map_for_monocular(data::frame& curr_frm) {
         // destruct the initializer
         initializer_.reset(nullptr);
     }
-
+    
+    //-------------------------------------------------------------------------------------------
+    //-------------------------------------------------------------------------------------------
+    //-------------------------------------------------------------------------------------------
+    // The first imu package include 2 parts for KF1 and KF2
+    std::vector<IMUData> vimu1,vimu2;
+    for(size_t i=0; i<mvIMUSinceLastKF.size(); i++)
+    {
+        IMUData imu = mvIMUSinceLastKF[i];
+        if(imu._t < init_frm_.timestamp_)
+            vimu1.push_back(imu);
+        else
+            vimu2.push_back(imu);
+    }
+    
     // create initial keyframes
-    auto init_keyfrm = new data::keyframe(init_frm_, map_db_, bow_db_);
-    auto curr_keyfrm = new data::keyframe(curr_frm, map_db_, bow_db_);
+    auto init_keyfrm = new data::keyframe(init_frm_, map_db_, bow_db_, vimu1, NULL);
+    init_keyfrm->ComputePreInt();
+    std::cout << "DEBUG 1" << std::endl;
+    auto curr_keyfrm = new data::keyframe(curr_frm, map_db_, bow_db_, vimu2, init_keyfrm);
+    std::cout << "DEBUG 2" << std::endl;
+    curr_keyfrm->ComputePreInt();
+    std::cout << "DEBUG 3" << std::endl;
+    // Clear IMUData buffer
+    mvIMUSinceLastKF.clear();
+    std::cout << "DEBUG 4" << std::endl;
+    //-------------------------------------------------------------------------------------------
+    //-------------------------------------------------------------------------------------------
+    //-------------------------------------------------------------------------------------------
 
     // compute BoW representations
     init_keyfrm->compute_bow();
@@ -193,7 +228,7 @@ bool initializer::create_map_for_monocular(data::frame& curr_frm) {
     // add the keyframes to the map DB
     map_db_->add_keyframe(init_keyfrm);
     map_db_->add_keyframe(curr_keyfrm);
-
+    
     // update the frame statistics
     init_frm_.ref_keyfrm_ = init_keyfrm;
     curr_frm.ref_keyfrm_ = curr_keyfrm;

@@ -9,6 +9,8 @@
 #include <atomic>
 #include <memory>
 
+#include "openvslam/IMU/configparam.h"
+
 namespace openvslam {
 
 class tracking_module;
@@ -23,10 +25,65 @@ class keyframe;
 class map_database;
 } // namespace data
 
+//-------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------
+namespace optimize {
+class local_bundle_adjuster;
+}
+//-------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------
+
 class mapping_module {
 public:
+    //-------------------------------------------------------------------------------------------
+    //-------------------------------------------------------------------------------------------
+    //-------------------------------------------------------------------------------------------
+    ConfigParam* mpParams;
+
+    // KeyFrames in Local Window, for Local BA
+    // Insert in ProcessNewKeyFrame()
+    void AddToLocalWindow(data::keyframe* pKF);
+    void DeleteBadInLocalWindow(void);
+
+    void VINSInitThread(void);
+    bool TryInitVIO(void);
+    bool GetVINSInited(void);
+    void SetVINSInited(bool flag);
+
+    bool GetFirstVINSInited(void);
+    void SetFirstVINSInited(bool flag);
+
+    cv::Mat GetGravityVec(void);
+    cv::Mat GetRwiInit(void);
+
+    bool GetMapUpdateFlagForTracking();
+    void SetMapUpdateFlagInTracking(bool bflag);
+    data::keyframe* GetMapUpdateKF();
+
+    const data::keyframe* GetCurrentKF(void) const {return cur_keyfrm_;}
+
+    std::mutex mMutexUpdatingInitPoses;
+    bool GetUpdatingInitPoses(void);
+    void SetUpdatingInitPoses(bool flag);
+
+    std::mutex mMutexInitGBAFinish;
+    bool mbInitGBAFinish;
+    bool GetFlagInitGBAFinish() { std::unique_lock<std::mutex> lock(mMutexInitGBAFinish); return mbInitGBAFinish; }
+    void SetFlagInitGBAFinish(bool flag) { std::unique_lock<std::mutex> lock(mMutexInitGBAFinish); mbInitGBAFinish = flag; }
+    //-------------------------------------------------------------------------------------------
+    //-------------------------------------------------------------------------------------------
+    //-------------------------------------------------------------------------------------------
+
+    //-------------------------------------------------------------------------------------------
+    //-------------------------------------------------------------------------------------------
+    //-------------------------------------------------------------------------------------------
     //! Constructor
-    mapping_module(data::map_database* map_db, const bool is_monocular);
+    mapping_module(data::map_database* map_db, const bool is_monocular, ConfigParam* pParams);
+    //-------------------------------------------------------------------------------------------
+    //-------------------------------------------------------------------------------------------
+    //-------------------------------------------------------------------------------------------
 
     //! Destructor
     ~mapping_module();
@@ -222,6 +279,43 @@ private:
 
     //! current keyframe which is used in the current mapping
     data::keyframe* cur_keyfrm_ = nullptr;
+//-------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------
+protected:
+    double mnStartTime;
+    bool mbFirstTry;
+    double mnVINSInitScale;
+    cv::Mat mGravityVec; // gravity vector in world frame
+    cv::Mat mRwiInit;
+
+    std::mutex mMutexVINSInitFlag;
+    bool mbVINSInited;
+
+    std::mutex mMutexFirstVINSInitFlag;
+    bool mbFirstVINSInited;
+
+    unsigned int mnLocalWindowSize;
+    std::list<data::keyframe*> mlLocalKeyFrames;
+
+    std::mutex mMutexMapUpdateFlag;
+    bool mbMapUpdateFlagForTracking;
+    data::keyframe* mpMapUpdateKF;
+
+    bool mbUpdatingInitPoses;
+
+    std::mutex mMutexCopyInitKFs;
+    bool mbCopyInitKFs;
+    bool GetFlagCopyInitKFs() { std::unique_lock<std::mutex> lock(mMutexCopyInitKFs); return mbCopyInitKFs; }
+    void SetFlagCopyInitKFs(bool flag) { std::unique_lock<std::mutex> lock(mMutexCopyInitKFs); mbCopyInitKFs = flag; }
+
+    // added by Rakesh and Sicong
+    unsigned int mnLocalMapAbort;
+
+    cv::Mat SkewSymmetricMatrix(const cv::Mat &v);
+//-------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------
 };
 
 } // namespace openvslam

@@ -12,10 +12,298 @@
 
 #include <nlohmann/json.hpp>
 
+#include<mutex>
+
 namespace openvslam {
 namespace data {
 
 std::atomic<unsigned int> keyframe::next_id_{0};
+
+//-------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------
+void keyframe::UpdateNavStatePVRFromTcw(const cv::Mat &Tcw,const cv::Mat &Tbc)
+{
+    std::unique_lock<std::mutex> lock(mMutexNavState);
+    cv::Mat Twb = util::converter::toCvMatInverse(Tbc*Tcw);
+    Matrix3d Rwb = util::converter::toMatrix3d(Twb.rowRange(0,3).colRange(0,3));
+    Vector3d Pwb = util::converter::toVector3d(Twb.rowRange(0,3).col(3));
+
+    Matrix3d Rw1 = mNavState.Get_RotMatrix();
+    Vector3d Vw1 = mNavState.Get_V();
+    Vector3d Vw2 = Rwb*Rw1.transpose()*Vw1;   // bV1 = bV2 ==> Rwb1^T*wV1 = Rwb2^T*wV2 ==> wV2 = Rwb2*Rwb1^T*wV1
+
+    mNavState.Set_Pos(Pwb);
+    mNavState.Set_Rot(Rwb);
+    mNavState.Set_Vel(Vw2);
+}
+
+void keyframe::SetInitialNavStateAndBias(const NavState& ns)
+{
+    std::unique_lock<std::mutex> lock(mMutexNavState);
+    mNavState = ns;
+    // Set bias as bias+delta_bias, and reset the delta_bias term
+    mNavState.Set_BiasGyr(ns.Get_BiasGyr()+ns.Get_dBias_Gyr());
+    mNavState.Set_BiasAcc(ns.Get_BiasAcc()+ns.Get_dBias_Acc());
+    mNavState.Set_DeltaBiasGyr(Vector3d::Zero());
+    mNavState.Set_DeltaBiasAcc(Vector3d::Zero());
+}
+
+keyframe* keyframe::GetPrevKeyFrame(void)
+{
+    std::unique_lock<std::mutex> lock(mMutexPrevKF);
+    return mpPrevKeyFrame;
+}
+
+keyframe* keyframe::GetNextKeyFrame(void)
+{
+    std::unique_lock<std::mutex> lock(mMutexNextKF);
+    return mpNextKeyFrame;
+}
+
+void keyframe::SetPrevKeyFrame(keyframe* pKF)
+{
+    std::unique_lock<std::mutex> lock(mMutexPrevKF);
+    mpPrevKeyFrame = pKF;
+}
+
+void keyframe::SetNextKeyFrame(keyframe* pKF)
+{
+    std::unique_lock<std::mutex> lock(mMutexNextKF);
+    mpNextKeyFrame = pKF;
+}
+
+std::vector<IMUData> keyframe::GetVectorIMUData(void)
+{
+    std::unique_lock<std::mutex> lock(mMutexIMUData);
+    return mvIMUData;
+}
+
+void keyframe::AppendIMUDataToFront(keyframe* pPrevKF)
+{
+    std::vector<IMUData> vimunew = pPrevKF->GetVectorIMUData();
+    {
+        std::unique_lock<std::mutex> lock(mMutexIMUData);
+        vimunew.insert(vimunew.end(), mvIMUData.begin(), mvIMUData.end());
+        mvIMUData = vimunew;
+    }
+}
+
+void keyframe::UpdatePoseFromNS(const cv::Mat &Tbc)
+{
+    cv::Mat Rbc_ = Tbc.rowRange(0,3).colRange(0,3).clone();
+    cv::Mat Pbc_ = Tbc.rowRange(0,3).col(3).clone();
+
+    cv::Mat Rwb_ = util::converter::toCvMat(mNavState.Get_RotMatrix());
+    cv::Mat Pwb_ = util::converter::toCvMat(mNavState.Get_P());
+
+    cv::Mat Rcw_ = (Rwb_*Rbc_).t();
+    cv::Mat Pwc_ = Rwb_*Pbc_ + Pwb_;
+    cv::Mat Pcw_ = -Rcw_*Pwc_;
+
+    cv::Mat Tcw_ = cv::Mat::eye(4,4,CV_32F);
+    Rcw_.copyTo(Tcw_.rowRange(0,3).colRange(0,3));
+    Pcw_.copyTo(Tcw_.rowRange(0,3).col(3));
+
+    // Convert the opencv matrix to a Mat44_t openvslam standard matrix
+    Mat44_t cam_pose;
+    cam_pose = util::converter::cvMat4_to_Mat44_t(Tcw_);
+
+    set_cam_pose(cam_pose);
+}
+
+void keyframe::UpdateNavState(const IMUPreintegrator& imupreint, const Vector3d& gw)
+{
+    std::unique_lock<std::mutex> lock(mMutexNavState);
+    util::converter::updateNS(mNavState,imupreint,gw);
+}
+
+void keyframe::SetNavState(const NavState& ns)
+{
+    std::unique_lock<std::mutex> lock(mMutexNavState);
+    mNavState = ns;
+}
+
+const NavState& keyframe::GetNavState(void)
+{
+    std::unique_lock<std::mutex> lock(mMutexNavState);
+    return mNavState;
+}
+
+void keyframe::SetNavStateBiasGyr(const Vector3d &bg)
+{
+    std::unique_lock<std::mutex> lock(mMutexNavState);
+    mNavState.Set_BiasGyr(bg);
+}
+
+void keyframe::SetNavStateBiasAcc(const Vector3d &ba)
+{
+    std::unique_lock<std::mutex> lock(mMutexNavState);
+    mNavState.Set_BiasAcc(ba);
+}
+
+void keyframe::SetNavStateVel(const Vector3d &vel)
+{
+    std::unique_lock<std::mutex> lock(mMutexNavState);
+    mNavState.Set_Vel(vel);
+}
+
+void keyframe::SetNavStatePos(const Vector3d &pos)
+{
+    std::unique_lock<std::mutex> lock(mMutexNavState);
+    mNavState.Set_Pos(pos);
+}
+
+void keyframe::SetNavStateRot(const Matrix3d &rot)
+{
+    std::unique_lock<std::mutex> lock(mMutexNavState);
+    mNavState.Set_Rot(rot);
+}
+
+void keyframe::SetNavStateRot(const Sophus::SO3 &rot)
+{
+    std::unique_lock<std::mutex> lock(mMutexNavState);
+    mNavState.Set_Rot(rot);
+}
+
+void keyframe::SetNavStateDeltaBg(const Vector3d &dbg)
+{
+    std::unique_lock<std::mutex> lock(mMutexNavState);
+    mNavState.Set_DeltaBiasGyr(dbg);
+}
+
+void keyframe::SetNavStateDeltaBa(const Vector3d &dba)
+{
+    std::unique_lock<std::mutex> lock(mMutexNavState);
+    mNavState.Set_DeltaBiasAcc(dba);
+}
+
+const IMUPreintegrator & keyframe::GetIMUPreInt(void)
+{
+    std::unique_lock<std::mutex> lock(mMutexIMUData);
+    return mIMUPreInt;
+}
+
+void keyframe::ComputePreInt(void)
+{
+    std::cout << "ComputePreInt 1" << std::endl;
+    std::unique_lock<std::mutex> lock(mMutexIMUData);
+    if(mpPrevKeyFrame == NULL)
+    {
+        if(id_!=0)
+        {
+            std::cerr<<"previous keyframe is NULL, pre-integrator not changed. id: "<<id_<<std::endl;
+        }
+        return;
+    }
+    else
+    {
+        std::cout << "ComputePreInt 2" << std::endl;
+        // Debug log
+        //cout<<std::fixed<<std::setprecision(3)<<
+        //      "gyro bias: "<<mNavState.Get_BiasGyr().transpose()<<
+        //      ", acc bias: "<<mNavState.Get_BiasAcc().transpose()<<endl;
+        //cout<<std::fixed<<std::setprecision(3)<<
+        //      "pre-int terms. prev KF time: "<<mpPrevKeyFrame->mTimeStamp<<endl<<
+        //      "pre-int terms. this KF time: "<<mTimeStamp<<endl<<
+        //      "imu terms times: "<<endl;
+
+        // Reset pre-integrator first
+        mIMUPreInt.reset();
+
+        // IMU pre-integration integrates IMU data from last to current, but the bias is from last
+        Vector3d bg = mpPrevKeyFrame->GetNavState().Get_BiasGyr();
+        Vector3d ba = mpPrevKeyFrame->GetNavState().Get_BiasAcc();
+        std::cout << "ComputePreInt 3" << std::endl;
+        // remember to consider the gap between the last KF and the first IMU
+        {
+            std::cout << "ComputePreInt 4" << std::endl;
+            const IMUData& imu = mvIMUData.front();
+            std::cout << "ComputePreInt 5" << std::endl;
+            std::cerr<<std::fixed<<std::setprecision(3)<<"prev KF: "<<mpPrevKeyFrame->timestamp_<<std::endl;
+            std::cerr<<std::fixed<<std::setprecision(3)<<"last imu time: "<<imu._t<<std::endl;
+            double dt = imu._t - mpPrevKeyFrame->timestamp_;
+            std::cout << "ComputePreInt 6" << std::endl;
+            mIMUPreInt.update(imu._g - bg,imu._a - ba,dt);
+            
+            // Test log
+            if(dt < 0)
+            {
+                std::cerr<<std::fixed<<std::setprecision(3)<<"1 dt = "<<dt<<", prev KF vs last imu time: "<<mpPrevKeyFrame->timestamp_<<" vs "<<imu._t<<std::endl;
+                std::cerr.unsetf ( std::ios::showbase );                // deactivate showbase
+            }
+            // Debug log
+            //cout<<std::fixed<<std::setprecision(3)<<imu._t<<", int dt: "<<dt<<"first imu int since prevKF"<<endl;
+        }
+
+        // integrate each imu
+        for(size_t i=0; i<mvIMUData.size(); i++)
+        {
+            const IMUData& imu = mvIMUData[i];
+            double nextt;
+            if(i==mvIMUData.size()-1)
+                nextt = timestamp_;         // last IMU, next is this KeyFrame
+            else
+                nextt = mvIMUData[i+1]._t;  // regular condition, next is imu data
+
+            // delta time
+            double dt = nextt - imu._t;
+            // update pre-integrator
+            mIMUPreInt.update(imu._g - bg,imu._a - ba,dt);
+
+            // Debug log
+            //cout<<std::fixed<<std::setprecision(3)<<imu._t<<", int dt: "<<dt<<endl;
+
+            // Test log
+            if(dt <= 0)
+            {
+                std::cerr<<std::fixed<<std::setprecision(3)<<"dt = "<<dt<<", this vs next time: "<<imu._t<<" vs "<<nextt<<std::endl;
+                std::cerr.unsetf ( std::ios::showbase );                // deactivate showbase
+            }
+        }
+    }
+    // Debug log
+    //cout<<"pre-int delta time: "<<mIMUPreInt.getDeltaTime()<<", deltaR:"<<endl<<mIMUPreInt.getDeltaR()<<endl;
+}
+
+keyframe::keyframe(const frame& frm, map_database* map_db, bow_database* bow_db, std::vector<IMUData> vIMUData, keyframe* pPrevKF)
+    :// meta information
+      id_(next_id_++), src_frm_id_(frm.id_), timestamp_(frm.timestamp_),
+      // camera parameters
+      camera_(frm.camera_), depth_thr_(frm.depth_thr_),
+      // constant observations
+      num_keypts_(frm.num_keypts_), keypts_(frm.keypts_), undist_keypts_(frm.undist_keypts_), bearings_(frm.bearings_),
+      keypt_indices_in_cells_(frm.keypt_indices_in_cells_),
+      stereo_x_right_(frm.stereo_x_right_), depths_(frm.depths_), descriptors_(frm.descriptors_.clone()),
+      // BoW
+      bow_vec_(frm.bow_vec_), bow_feat_vec_(frm.bow_feat_vec_),
+      // covisibility graph node (connections is not assigned yet)
+      graph_node_(std::unique_ptr<graph_node>(new graph_node(this, true))),
+      // ORB scale pyramid
+      num_scale_levels_(frm.num_scale_levels_), scale_factor_(frm.scale_factor_),
+      log_scale_factor_(frm.log_scale_factor_), scale_factors_(frm.scale_factors_),
+      level_sigma_sq_(frm.level_sigma_sq_), inv_level_sigma_sq_(frm.inv_level_sigma_sq_),
+      // observations
+      landmarks_(frm.landmarks_),
+      // databases
+      map_db_(map_db), bow_db_(bow_db), bow_vocab_(frm.bow_vocab_) {
+
+    mvIMUData = vIMUData;
+
+    if(pPrevKF)
+    {
+        pPrevKF->SetNextKeyFrame(this);
+    }
+    mpPrevKeyFrame = pPrevKF;
+    mpNextKeyFrame = NULL;
+
+    // set pose parameters (cam_pose_wc_, cam_center_) using frm.cam_pose_cw_
+    set_cam_pose(frm.cam_pose_cw_);
+}
+
+//-------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------
 
 keyframe::keyframe(const frame& frm, map_database* map_db, bow_database* bow_db)
     : // meta information
@@ -38,6 +326,18 @@ keyframe::keyframe(const frame& frm, map_database* map_db, bow_database* bow_db)
       landmarks_(frm.landmarks_),
       // databases
       map_db_(map_db), bow_db_(bow_db), bow_vocab_(frm.bow_vocab_) {
+
+    //-------------------------------------------------------------------------------------------
+    //-------------------------------------------------------------------------------------------
+    //-------------------------------------------------------------------------------------------
+    // Test log
+    std::cerr<<"shouldn't call this keyframe()"<<std::endl;
+
+    mpPrevKeyFrame = NULL;
+    mpNextKeyFrame = NULL;
+    //-------------------------------------------------------------------------------------------
+    //-------------------------------------------------------------------------------------------
+    //-------------------------------------------------------------------------------------------
     // set pose parameters (cam_pose_wc_, cam_center_) using frm.cam_pose_cw_
     set_cam_pose(frm.cam_pose_cw_);
 }
@@ -363,6 +663,26 @@ void keyframe::set_to_be_erased() {
 }
 
 void keyframe::prepare_for_erasing() {
+    //-------------------------------------------------------------------------------------------
+    //-------------------------------------------------------------------------------------------
+    //-------------------------------------------------------------------------------------------
+    if(will_be_erased_)
+    {
+        std::vector<keyframe*> vKFinMap =map_db_->get_all_keyframes();
+        std::set<keyframe*> KFinMap(vKFinMap.begin(),vKFinMap.end());
+        if(KFinMap.count(this))
+        {
+            std::cerr<<"this bad KF is still in map?"<<std::endl;
+            map_db_->erase_keyframe(this);
+        }
+        bow_db_->erase_keyframe(this);
+        std::cerr<<"KeyFrame "<<id_<<" is already bad. Set bad return"<<std::endl;
+        return;
+    }
+    //-------------------------------------------------------------------------------------------
+    //-------------------------------------------------------------------------------------------   
+    //-------------------------------------------------------------------------------------------
+
     // cannot erase the origin
     if (*this == *(map_db_->origin_keyfrm_)) {
         return;
@@ -396,6 +716,41 @@ void keyframe::prepare_for_erasing() {
     // 3. update frame statistics
 
     map_db_->replace_reference_keyframe(this, graph_node_->get_spanning_parent());
+
+    //-------------------------------------------------------------------------------------------
+    //-------------------------------------------------------------------------------------------
+    //-------------------------------------------------------------------------------------------
+    // Update Prev/Next KeyFrame for prev/next
+    keyframe* pPrevKF = GetPrevKeyFrame();
+    keyframe* pNextKF = GetNextKeyFrame();
+    if(pPrevKF)
+        pPrevKF->SetNextKeyFrame(pNextKF);
+    if(pNextKF)
+        pNextKF->SetPrevKeyFrame(pPrevKF);
+    SetPrevKeyFrame(NULL);
+    SetNextKeyFrame(NULL);
+    // TODO: this happend once. Log: Current id = 1.
+    // Test log.
+    if(!pPrevKF) std::cerr<<"It's culling the first KF? pPrevKF=NULL. Current id: "<<id_<<std::endl;
+    if(!pNextKF) std::cerr<<"It's culling the latest KF? pNextKF=NULL. Current id: "<<id_<<std::endl;
+    // TODO
+    if(pPrevKF && pNextKF)
+    {
+        if(pPrevKF->will_be_erased()) std::cerr<<"Prev KF isbad in setbad. previd: "<<pPrevKF->id_<<", current id"<<id_<<std::endl;
+        if(pNextKF->will_be_erased()) std::cerr<<"Next KF isbad in setbad. previd: "<<pNextKF->id_<<", current id"<<id_<<std::endl;
+
+        //Debug log, compare the bias of culled KF and the replaced one
+        //cout<<"culled KF bg/ba: "<<mNavState.Get_BiasGyr().transpose()<<", "<<mNavState.Get_BiasAcc().transpose()<<endl;
+        //cout<<"next KF bg/ba: "<<pNextKF->GetNavState().Get_BiasGyr().transpose()<<", "<<pNextKF->GetNavState().Get_BiasAcc().transpose()<<endl;
+
+        // Update IMUData for NextKF
+        pNextKF->AppendIMUDataToFront(this);
+        // Re-compute pre-integrator
+        pNextKF->ComputePreInt();
+    }
+    //-------------------------------------------------------------------------------------------
+    //-------------------------------------------------------------------------------------------
+    //-------------------------------------------------------------------------------------------
 
     // 4. remove myself from the databased
 

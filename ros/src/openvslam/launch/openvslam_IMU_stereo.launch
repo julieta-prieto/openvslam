@@ -1,0 +1,47 @@
+
+<!-- Launch file to run OpenVSLAM for RGBD Cameras -->
+
+<launch>
+	<!-- True for simulation, False for real time -->
+	<arg name="simulation" default="true"/>
+	<param if="$(arg simulation)" name="use_sim_time" value="true"/>
+
+	<!-- Set the path to the local VSLAM-tests repostiory -->
+	<arg name="vslam_repo_path"			default="$(env HOME)/catkin_ws/src/vslam-tests/openvslam_bringup"/>
+
+	<!-- Camera Information -->
+	<arg name="left_image_raw"    default="/cam0/image_raw"/> 
+    <arg name="right_image_raw"   default="/cam1/image_raw"/> 
+    <arg name="left_image_rect"   default="/t265/camera/fisheye1/rect/image"/> 
+    <arg name="right_image_rect"  default="/t265/camera/fisheye2/rect/image"/> 
+    <arg name="left_camera_info"  default="/t265/camera/fisheye1/rect/camera_info"/> 
+    <arg name="right_camera_info" default="/t265/camera/fisheye2/rect/camera_info"/>
+	
+	<arg name="camera_config"			default="EuRoC_mono.yaml"/> <!--Name of the camera's configuration file -->
+	<arg name="config_path" 			default="$(arg vslam_repo_path)/config/$(arg camera_config)"/> <!-- Config file path -->
+
+	<arg name="orb_vocab_config"		default="orb_vocab.dbow2"/> <!-- Orb_vocab file name -->
+	<arg name="orb_vocab_path" 			default="$(arg vslam_repo_path)/orb_vocab/$(arg orb_vocab_config)"/> <!-- Orb_vocab file path -->
+	
+	<arg name="save_keyframes" 			default="true"/> <!-- store trajectory and tracking times for evaluation -->
+	<arg name="save_keyframes_path" 	default="$(arg vslam_repo_path)/evaluation_files/"/>
+	<arg if="$(arg save_keyframes)" 	name="arg_keyframes" default="--eval-log"/>
+	<arg unless="$(arg save_keyframes)" name="arg_keyframes" default=""/>
+
+
+	<node pkg="stereo_image_proc" type="stereo_image_proc" name="stereo_image_proc">
+    	<remap from="left/image_raw"    to="$(arg left_image_raw)"/>
+    	<remap from="right/image_raw"   to="$(arg right_image_raw)"/>
+ 	</node>
+
+	<!-- Launch OpenVSLAM -->
+	<node pkg="openvslam" type="mono_slam" name="mono_slam" args="-v $(arg orb_vocab_path)   -c $(arg config_path)  $(arg arg_keyframes)" output="screen">
+		<param name="save_file_path" 	value="$(arg save_keyframes_path)"/>
+		<!--<param name="left_image_raw"    value="$(arg left_image_raw)"/> 
+	    <param name="right_image_raw"   value="$(arg right_image_raw)"/> 
+	    <param name="left_image_rect"   value="$(arg left_image_rect)"/> 
+	    <param name="right_image_rect"  value="$(arg right_image_rect)"/> 
+	    <param name="left_camera_info"  value="$(arg left_camera_info)"/> 
+	    <param name="right_camera_info" value="$(arg right_camera_info)"/>-->
+	</node>
+</launch>

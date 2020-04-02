@@ -8,6 +8,8 @@
 #include "openvslam/module/loop_bundle_adjuster.h"
 #include "openvslam/optimize/graph_optimizer.h"
 
+#include "openvslam/IMU/IMUPreintegrator.h"
+
 #include <list>
 #include <mutex>
 #include <thread>
@@ -19,6 +21,13 @@ class tracking_module;
 class mapping_module;
 
 namespace data {
+//-------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------
+class frame;
+//-------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------
 class keyframe;
 class bow_database;
 class map_database;
@@ -26,8 +35,47 @@ class map_database;
 
 class global_optimization_module {
 public:
+    //-------------------------------------------------------------------------------------------
+    //-------------------------------------------------------------------------------------------
+    //-------------------------------------------------------------------------------------------
+    void static GlobalBundleAdjustmentNavState(data::map_database* pMap, const cv::Mat& gw, int nIterations, bool* pbStopFlag, const unsigned long nLoopKF, const bool bRobust);
+
+    int static PoseOptimization(data::frame *pFrame, data::keyframe* pLastKF, const IMUPreintegrator& imupreint, const cv::Mat& gw, const bool& bComputeMarg=false);
+    int static PoseOptimization(data::frame *pFrame, data::frame* pLastFrame, const IMUPreintegrator& imupreint, const cv::Mat& gw, const bool& bComputeMarg=false);
+
+    #ifndef NOT_UPDATE_GYRO_BIAS
+        int static PoseOptimization15DoF(data::frame *pFrame, data::keyframe* pLastKF, const IMUPreintegrator& imupreint, const cv::Mat& gw, const bool& bComputeMarg=false);
+        int static PoseOptimization15DoF(data::frame *pFrame, data::frame* pLastFrame, const IMUPreintegrator& imupreint, const cv::Mat& gw, const bool& bComputeMarg=false);
+    #endif
+
+    void static GlobalBundleAdjustmentNavStateWithGw(data::map_database* mMap, cv::Mat& gw, int nIterations=5, bool* pbStopFlag=NULL);
+
+    void static LocalBundleAdjustmentNavState(data::keyframe *pKF, const std::list<data::keyframe*> &lLocalKeyFrames, bool* pbStopFlag, data::map_database* pMap, cv::Mat& gw, mapping_module* pLM=NULL);
+    void static LocalBundleAdjustmentNavState15DoF(data::keyframe *pKF, const std::list<data::keyframe*> &lLocalKeyFrames, bool* pbStopFlag, data::map_database* pMap, cv::Mat& gw, mapping_module* pLM=NULL);
+
+    Vector3d static OptimizeInitialGyroBias(const std::list<data::keyframe*> &lLocalKeyFrames);
+    Vector3d static OptimizeInitialGyroBias(const std::vector<data::keyframe*> &vLocalKeyFrames);
+    Vector3d static OptimizeInitialGyroBias(const std::vector<data::frame> &vFrames);
+    Vector3d static OptimizeInitialGyroBias(const std::vector<cv::Mat>& vTwc, const std::vector<IMUPreintegrator>& vImuPreInt);
+
+    //-------------------------------------------------------------------------------------------
+    //-------------------------------------------------------------------------------------------
+    //-------------------------------------------------------------------------------------------
+
+    //-------------------------------------------------------------------------------------------
+    //-------------------------------------------------------------------------------------------
+    //-------------------------------------------------------------------------------------------
+    ConfigParam* mpParams;
+
+    bool GetMapUpdateFlagForTracking();
+    void SetMapUpdateFlagInTracking(bool bflag);
+    //-------------------------------------------------------------------------------------------
+    //-------------------------------------------------------------------------------------------
+    //-------------------------------------------------------------------------------------------
+
+
     //! Constructor
-    global_optimization_module(data::map_database* map_db, data::bow_database* bow_db, data::bow_vocabulary* bow_vocab, const bool fix_scale);
+    global_optimization_module(data::map_database* map_db, data::bow_database* bow_db, data::bow_vocabulary* bow_vocab, const bool fix_scale, ConfigParam* pParams);
 
     //! Destructor
     ~global_optimization_module();
@@ -214,6 +262,16 @@ private:
 
     //! thread for running loop BA
     std::unique_ptr<std::thread> thread_for_loop_BA_ = nullptr;
+
+    //-------------------------------------------------------------------------------------------
+    //-------------------------------------------------------------------------------------------
+    //-------------------------------------------------------------------------------------------
+protected:
+    std::mutex mMutexMapUpdateFlag;
+    bool mbMapUpdateFlagForTracking;
+    //-------------------------------------------------------------------------------------------
+    //-------------------------------------------------------------------------------------------
+    //-------------------------------------------------------------------------------------------
 };
 
 } // namespace openvslam

@@ -1,7 +1,11 @@
 #ifndef OPENVSLAM_OPTIMIZE_LOCAL_BUNDLE_ADJUSTER_H
 #define OPENVSLAM_OPTIMIZE_LOCAL_BUNDLE_ADJUSTER_H
 
+#include "openvslam/mapping_module.h"
+
 namespace openvslam {
+
+class mapping_module;
 
 namespace data {
 class keyframe;
@@ -25,13 +29,24 @@ public:
      * Destructor
      */
     virtual ~local_bundle_adjuster() = default;
-
+    //-------------------------------------------------------------------------------------------
+    //-------------------------------------------------------------------------------------------
+    //-------------------------------------------------------------------------------------------
+    // CONSTRUCTOR MODIFICADO
     /**
      * Perform optimization
      * @param curr_keyfrm
      * @param force_stop_flag
      */
-    void optimize(data::keyframe* curr_keyfrm, bool* const force_stop_flag) const;
+    void optimize(data::keyframe* curr_keyfrm, bool* const force_stop_flag, data::map_database* map_db, mapping_module* mapper_=NULL) const;
+    // Añadido
+    void optimize(data::keyframe *curr_keyfrm, std::unordered_map<unsigned int, data::keyframe*> &local_keyfrms, bool* const force_stop_flag, data::map_database* map_db, mapping_module* mapper_=NULL) const;
+
+    void LocalBundleAdjustmentNavState(data::keyframe *pKF, std::unordered_map<unsigned int, data::keyframe*> &local_keyfrms, bool* const force_stop_flag, data::map_database* map_db, cv::Mat& gw, mapping_module* mapper_=NULL) const;
+    void LocalBundleAdjustmentNavState(data::keyframe *pKF, std::list<data::keyframe*> &local_keyfrms, bool* const force_stop_flag, data::map_database* map_db, cv::Mat& gw, mapping_module* mapper_=NULL) const;
+    //-------------------------------------------------------------------------------------------
+    //-------------------------------------------------------------------------------------------
+    //-------------------------------------------------------------------------------------------
 
 private:
     //! number of iterations of first optimization

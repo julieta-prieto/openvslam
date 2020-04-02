@@ -1,0 +1,7 @@
+openvslam
+/home/julieta/openvslam/ros/devel/.private/openvslam/cmake.lock /home/julieta/openvslam/ros/devel/./cmake.lock
+/home/julieta/openvslam/ros/devel/.private/openvslam/lib/pkgconfig/openvslam.pc /home/julieta/openvslam/ros/devel/lib/pkgconfig/openvslam.pc
+/home/julieta/openvslam/ros/devel/.private/openvslam/lib/openvslam/run_slam /home/julieta/openvslam/ros/devel/lib/openvslam/run_slam
+/home/julieta/openvslam/ros/devel/.private/openvslam/lib/openvslam/run_localization /home/julieta/openvslam/ros/devel/lib/openvslam/run_localization
+/home/julieta/openvslam/ros/devel/.private/openvslam/share/openvslam/cmake/openvslamConfig.cmake /home/julieta/openvslam/ros/devel/share/openvslam/cmake/openvslamConfig.cmake
+/home/julieta/openvslam/ros/devel/.private/openvslam/share/openvslam/cmake/openvslamConfig-version.cmake /home/julieta/openvslam/ros/devel/share/openvslam/cmake/openvslamConfig-version.cmake

@@ -7,6 +7,10 @@ set(spdlog_INCLUDE_DIR ${PROJECT_SOURCE_DIR}/3rd/spdlog/include)
 set(json_INCLUDE_DIR ${PROJECT_SOURCE_DIR}/3rd/json/include)
 
 # g2o
+#FIND_PACKAGE(Cholmod)
+#include_directories(${CHOLMOD_INCLUDE_DIR})
+#set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_CURRENT_LIST_DIR}/cmake")
+
 find_package(g2o REQUIRED
              COMPONENTS
              g2o::core
@@ -17,6 +21,7 @@ find_package(g2o REQUIRED
              g2o::solver_eigen
              g2o::solver_csparse
              g2o::csparse_extension
+             #g2o::solver_cholmod
              OPTIONAL_COMPONENTS
              g2o::csparse)
 
@@ -50,7 +55,26 @@ add_library(${PROJECT_NAME}
             ${CMAKE_CURRENT_SOURCE_DIR}/system.cc
             ${CMAKE_CURRENT_SOURCE_DIR}/tracking_module.cc
             ${CMAKE_CURRENT_SOURCE_DIR}/mapping_module.cc
-            ${CMAKE_CURRENT_SOURCE_DIR}/global_optimization_module.cc)
+            ${CMAKE_CURRENT_SOURCE_DIR}/global_optimization_module.cc
+
+            ${CMAKE_CURRENT_SOURCE_DIR}/IMU/configparam.h
+            ${CMAKE_CURRENT_SOURCE_DIR}/IMU/configparam.cpp
+            ${CMAKE_CURRENT_SOURCE_DIR}/IMU/imudata.h
+            ${CMAKE_CURRENT_SOURCE_DIR}/IMU/imudata.cpp
+            ${CMAKE_CURRENT_SOURCE_DIR}/IMU/IMUPreintegrator.h
+            ${CMAKE_CURRENT_SOURCE_DIR}/IMU/IMUPreintegrator.cpp
+            ${CMAKE_CURRENT_SOURCE_DIR}/IMU/so3.cpp
+            ${CMAKE_CURRENT_SOURCE_DIR}/IMU/so3.h
+            ${CMAKE_CURRENT_SOURCE_DIR}/IMU/NavState.h
+            ${CMAKE_CURRENT_SOURCE_DIR}/IMU/NavState.cpp
+            ${CMAKE_CURRENT_SOURCE_DIR}/IMU/g2otypes.h
+            ${CMAKE_CURRENT_SOURCE_DIR}/IMU/g2otypes.cpp)
+
+            #${CMAKE_CURRENT_SOURCE_DIR}/Thirdparty/g2o/g2o/core/base_vertex.h
+            #${CMAKE_CURRENT_SOURCE_DIR}/Thirdparty/g2o/g2o/core/base_unary_edge.h
+            #${CMAKE_CURRENT_SOURCE_DIR}/Thirdparty/g2o/g2o/core/base_multi_edge.h
+            #${CMAKE_CURRENT_SOURCE_DIR}/Thirdparty/g2o/g2o/core/base_binary_edge.h
+            #${CMAKE_CURRENT_SOURCE_DIR}/Thirdparty/g2o/g2o/types/types_six_dof_expmap.h)
 
 # Set output directory of the library
 set_target_properties(${PROJECT_NAME} PROPERTIES
@@ -141,6 +165,7 @@ target_link_libraries(${PROJECT_NAME}
                       g2o::solver_dense
                       g2o::solver_eigen
                       g2o::solver_csparse
+                      #g2o::solver_cholmod
                       g2o::csparse_extension
                       ${CXSPARSE_LIBRARIES}
                       ${SUITESPARSE_LIBRARIES}

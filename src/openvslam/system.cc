@@ -16,7 +16,125 @@
 
 #include <spdlog/spdlog.h>
 
+#include <time.h>
+
+#include "openvslam/IMU/configparam.h"
+#include <opencv2/core/eigen.hpp>
+
+//-------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------
+bool has_suffix(const std::string &str, const std::string &suffix) {
+  std::size_t index = str.find(suffix, str.size() - suffix.size());
+  return (index != std::string::npos);
+}
+//-------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------
+
 namespace openvslam {
+//-------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------
+
+bool system::bLocalMapAcceptKF()
+{
+    return (mapper_->get_keyframe_acceptability() && !mapper_->is_paused());
+    //return mpLocalMapper->ForsyncCheckNewKeyFrames();
+}
+
+void system::GetSLAMData(SLAMData& slamdata)
+{
+    //slamdata.TrackingStatus = tracker_->mState;
+    //if(slamdata.TrackingStatus > 0)
+    //{
+        cv::Mat pose;
+        eigen2cv(tracker_->curr_frm_.cam_pose_cw_, pose);
+        if(!pose.empty())
+        {
+            slamdata.Tcw = pose.clone();
+        }
+        slamdata.VINSInitFlag = mapper_->GetVINSInited();
+        if(slamdata.VINSInitFlag)
+        {
+            slamdata.gw = mapper_->GetGravityVec();
+            slamdata.Rwi = mapper_->GetRwiInit();
+        }
+        slamdata.Timestamp = tracker_->curr_frm_.timestamp_;
+    //}
+}
+
+void system::SaveKeyFrameTrajectoryNavState(const std::string &filename)
+{
+    std::cout << std::endl << "Saving keyframe NavState to " << filename << " ..." << std::endl;
+
+    std::vector<data::keyframe*> vpKFs = map_db_->get_all_keyframes();
+    std::sort(vpKFs.begin(), vpKFs.end(), [&](data::keyframe* keyfrm_1, data::keyframe* keyfrm_2) {
+        return *keyfrm_1 < *keyfrm_2;
+    });
+    //sort(vpKFs.begin(),vpKFs.end(),KeyFrame::lId);
+
+    // Transform all keyframes so that the first keyframe is at the origin.
+    // After a loop closure the first keyframe might not be at the origin.
+    //cv::Mat Two = vpKFs[0]->GetPoseInverse();
+
+    std::ofstream f;
+    f.open(filename.c_str());
+    f << std::fixed;
+
+    for(size_t i=0; i<vpKFs.size(); i++)
+    {
+        data::keyframe* pKF = vpKFs[i];
+
+       // pKF->SetPose(pKF->GetPose()*Two);
+
+        if(pKF->will_be_erased())
+            continue;
+
+        Eigen::Vector3d P = pKF->GetNavState().Get_P();
+        Eigen::Vector3d V = pKF->GetNavState().Get_V();
+        Eigen::Quaterniond q = pKF->GetNavState().Get_R().unit_quaternion();
+        Eigen::Vector3d bg = pKF->GetNavState().Get_BiasGyr();
+        Eigen::Vector3d ba = pKF->GetNavState().Get_BiasAcc();
+        Eigen::Vector3d dbg = pKF->GetNavState().Get_dBias_Gyr();
+        Eigen::Vector3d dba = pKF->GetNavState().Get_dBias_Acc();
+        f << std::setprecision(6) << pKF->timestamp_ << std::setprecision(7) << " ";
+        f << P(0) << " " << P(1) << " " << P(2) << " ";
+        f << q.x() << " " << q.y() << " " << q.z() << " " << q.w() << " ";
+        f << V(0) << " " << V(1) << " " << V(2) << " ";
+        f << bg(0)+dbg(0) << " " << bg(1)+dbg(1) << " " << bg(2)+dbg(2) << " ";
+        f << ba(0)+dba(0) << " " << ba(1)+dba(1) << " " << ba(2)+dba(2) << " ";
+//        f << bg(0) << " " << bg(1) << " " << bg(2) << " ";
+//        f << ba(0) << " " << ba(1) << " " << ba(2) << " ";
+//        f << dbg(0) << " " << dbg(1) << " " << dbg(2) << " ";
+//        f << dba(0) << " " << dba(1) << " " << dba(2) << " ";
+        f << std::endl;
+    }
+
+    f.close();
+    std::cout << std::endl << "NavState trajectory saved!" << std::endl;
+}
+
+Mat44_t system::feed_monocular_frame_VI(const cv::Mat& img, const std::vector<IMUData> &vimu, const double timestamp, const cv::Mat& mask)
+{
+    // CONTINUAR A PARTIR DE AQUI EL LUNES!!!!
+    assert(camera_->setup_type_ == camera::setup_type_t::Monocular);
+
+    check_reset_request();
+
+    const Mat44_t cam_pose_cw = tracker_->track_monocular_image_VI(img, vimu, timestamp, mask);
+
+    frame_publisher_->update(tracker_);
+    if (tracker_->tracking_state_ == tracker_state_t::Tracking) {
+        map_publisher_->set_current_cam_pose(cam_pose_cw);
+    }
+
+    return cam_pose_cw;
+}
+//-------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------
+
 
 system::system(const std::shared_ptr<config>& cfg, const std::string& vocab_file_path)
     : cfg_(cfg), camera_(cfg->camera_) {
@@ -63,7 +181,14 @@ system::system(const std::shared_ptr<config>& cfg, const std::string& vocab_file
         exit(EXIT_FAILURE);
     }
 #endif
-
+    //-------------------------------------------------------------------------------------------
+    //-------------------------------------------------------------------------------------------
+    //-------------------------------------------------------------------------------------------
+    ConfigParam config(cfg_->config_file_path_);
+    //-------------------------------------------------------------------------------------------
+    //-------------------------------------------------------------------------------------------
+    //-------------------------------------------------------------------------------------------
+    
     // database
     cam_db_ = new data::camera_database(camera_);
     map_db_ = new data::map_database();
@@ -73,12 +198,19 @@ system::system(const std::shared_ptr<config>& cfg, const std::string& vocab_file
     frame_publisher_ = std::shared_ptr<publish::frame_publisher>(new publish::frame_publisher(cfg_, map_db_));
     map_publisher_ = std::shared_ptr<publish::map_publisher>(new publish::map_publisher(cfg_, map_db_));
 
+    //-------------------------------------------------------------------------------------------
+    //-------------------------------------------------------------------------------------------
+    // Cambiados los constructores
+    //-------------------------------------------------------------------------------------------
     // tracking module
-    tracker_ = new tracking_module(cfg_, this, map_db_, bow_vocab_, bow_db_);
+    tracker_ = new tracking_module(cfg_, this, map_db_, bow_vocab_, bow_db_, &config);
     // mapping module
-    mapper_ = new mapping_module(map_db_, camera_->setup_type_ == camera::setup_type_t::Monocular);
+    mapper_ = new mapping_module(map_db_, camera_->setup_type_ == camera::setup_type_t::Monocular, &config);
     // global optimization module
-    global_optimizer_ = new global_optimization_module(map_db_, bow_db_, bow_vocab_, camera_->setup_type_ != camera::setup_type_t::Monocular);
+    global_optimizer_ = new global_optimization_module(map_db_, bow_db_, bow_vocab_, camera_->setup_type_ != camera::setup_type_t::Monocular, &config);
+    //-------------------------------------------------------------------------------------------
+    //-------------------------------------------------------------------------------------------
+    //-------------------------------------------------------------------------------------------
 
     // connect modules each other
     tracker_->set_mapping_module(mapper_);
@@ -87,6 +219,18 @@ system::system(const std::shared_ptr<config>& cfg, const std::string& vocab_file
     mapper_->set_global_optimization_module(global_optimizer_);
     global_optimizer_->set_tracking_module(tracker_);
     global_optimizer_->set_mapping_module(mapper_);
+
+    //-------------------------------------------------------------------------------------------
+    //-------------------------------------------------------------------------------------------
+    //-------------------------------------------------------------------------------------------
+    #ifdef RUN_REALTIME
+    //Thread for VINS initialization
+    mptLocalMappingVIOInit = new std::thread(&openvslam::mapping_module::VINSInitThread, mapper_);
+    #endif
+
+    //-------------------------------------------------------------------------------------------
+    //-------------------------------------------------------------------------------------------
+    //-------------------------------------------------------------------------------------------
 }
 
 system::~system() {
@@ -240,6 +384,7 @@ Mat44_t system::feed_monocular_frame(const cv::Mat& img, const double timestamp,
     const Mat44_t cam_pose_cw = tracker_->track_monocular_image(img, timestamp, mask);
 
     frame_publisher_->update(tracker_);
+    
     if (tracker_->tracking_state_ == tracker_state_t::Tracking) {
         map_publisher_->set_current_cam_pose(cam_pose_cw);
     }
