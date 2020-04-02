@@ -128,7 +128,8 @@ endif()
 
 find_package(catkin REQUIRED COMPONENTS
         cv_bridge
-        image_transport)
+        image_transport
+	message_generation)
 
 # thread library
 find_package(Threads REQUIRED)
@@ -183,13 +184,25 @@ if(USE_SOCKET_PUBLISHER)
     include_directories(${SIOCLIENT_INCLUDE_DIR} ${PROTOBUF_INCLUDE_DIRS})
 endif()
 
+add_message_files(
+    FILES
+    viorb_msg.msg
+    )
+
+generate_messages(
+    DEPENDENCIES
+    std_msgs
+    geometry_msgs
+    )
+
 #################################
 # catkin specific configuration #
 #################################
 
 catkin_package(CATKIN_DEPENDS
         cv_bridge
-        image_transport)
+        image_transport
+        message_runtime)
 
 #################
 # BoW framework #

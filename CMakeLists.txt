@@ -78,9 +78,9 @@ find_package(Eigen3 3.3 REQUIRED)
 # yaml-cpp
 find_package(yaml-cpp REQUIRED)
 
-FIND_PACKAGE(Cholmod)
-include_directories(${CHOLMOD_INCLUDE_DIR})
-message("CHOLMOD_INCLUDE_DIR:" ${CHOLMOD_INCLUDE_DIR})
+#FIND_PACKAGE(Cholmod)
+#include_directories(${CHOLMOD_INCLUDE_DIR})
+#message("CHOLMOD_INCLUDE_DIR:" ${CHOLMOD_INCLUDE_DIR})
 
 # OpenCV
 find_package(OpenCV 3.3.1 QUIET
@@ -95,6 +95,7 @@ if(NOT OpenCV_FOUND)
     endif()
 endif()
 message(STATUS "Use OpenCV ${OpenCV_VERSION}")
+
 
 # ----- Install configuration -----
 

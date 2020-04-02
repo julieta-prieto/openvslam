@@ -39,3 +39,5 @@ cmake-build-release/
 *.exe
 *.out
 *.app
+
+debug.txt

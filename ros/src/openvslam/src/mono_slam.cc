@@ -32,7 +32,7 @@
 
 #include <boost/foreach.hpp>
 
-#include "/home/julieta/openvslam/ros/src/openvslam/msg_gen/cpp/include/ORB_VIO/viorb_msg.h"
+#include "openvslam/viorb_msg.h"
 #include "openvslam/util/converter.h"
 
 //#undef RUN_REALTIME
@@ -53,7 +53,7 @@
 //-------------------------------------------------------------------------------------------
 void PublishSLAMData(ros::Publisher& slamdatapub, const openvslam::SLAMData& slamdata)
 {
-    ORB_VIO::viorb_msg slamdatamsg;
+    openvslam::viorb_msg slamdatamsg;
     slamdatamsg.header.stamp = ros::Time(slamdata.Timestamp);
     // VINSInitFlag
     slamdatamsg.VINSInitFlag.data = slamdata.VINSInitFlag;
@@ -208,7 +208,7 @@ void mono_tracking(const std::shared_ptr<openvslam::config>& cfg, const std::str
     #endif
 
     openvslam::SLAMData slamdata;
-    ros::Publisher slamdatapub = nh.advertise<ORB_VIO::viorb_msg>("VIORB/SLAMData", 10);
+    ros::Publisher slamdatapub = nh.advertise<openvslam::viorb_msg>("VIORB/SLAMData", 10);
 
     ros::Rate r(1000);
 
