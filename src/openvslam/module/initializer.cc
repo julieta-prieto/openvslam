@@ -76,9 +76,10 @@ bool initializer::initialize(data::frame& curr_frm, std::vector<IMUData>& mvIMUS
                 // failed
                 return false;
             }
-
+            
             // create new map if succeeded
             create_map_for_monocular(curr_frm, mvIMUSinceLastKF);
+            std::cout << "SALGO DE CREAR EL MAPA" << std::endl;
             break;
         }
         case camera::setup_type_t::Stereo:
@@ -209,65 +210,61 @@ bool initializer::create_map_for_monocular(data::frame& curr_frm, std::vector<IM
     // create initial keyframes
     auto init_keyfrm = new data::keyframe(init_frm_, map_db_, bow_db_, vimu1, NULL);
     init_keyfrm->ComputePreInt();
-    std::cout << "DEBUG 1" << std::endl;
     auto curr_keyfrm = new data::keyframe(curr_frm, map_db_, bow_db_, vimu2, init_keyfrm);
-    std::cout << "DEBUG 2" << std::endl;
     curr_keyfrm->ComputePreInt();
-    std::cout << "DEBUG 3" << std::endl;
     // Clear IMUData buffer
     mvIMUSinceLastKF.clear();
-    std::cout << "DEBUG 4" << std::endl;
+    
     //-------------------------------------------------------------------------------------------
     //-------------------------------------------------------------------------------------------
     //-------------------------------------------------------------------------------------------
-
+    
     // compute BoW representations
     init_keyfrm->compute_bow();
     curr_keyfrm->compute_bow();
-
     // add the keyframes to the map DB
     map_db_->add_keyframe(init_keyfrm);
     map_db_->add_keyframe(curr_keyfrm);
-    
     // update the frame statistics
     init_frm_.ref_keyfrm_ = init_keyfrm;
     curr_frm.ref_keyfrm_ = curr_keyfrm;
     map_db_->update_frame_statistics(init_frm_, false);
     map_db_->update_frame_statistics(curr_frm, false);
-
     // assign 2D-3D associations
     for (unsigned int init_idx = 0; init_idx < init_matches_.size(); init_idx++) {
         const auto curr_idx = init_matches_.at(init_idx);
+        // std::cout << init_matches_.at(init_idx) << std::endl;
         if (curr_idx < 0) {
             continue;
         }
-
+        
         // construct a landmark
         auto lm = new data::landmark(init_triangulated_pts.at(init_idx), curr_keyfrm, map_db_);
-
+        
         // set the assocications to the new keyframes
         init_keyfrm->add_landmark(lm, init_idx);
         curr_keyfrm->add_landmark(lm, curr_idx);
         lm->add_observation(init_keyfrm, init_idx);
         lm->add_observation(curr_keyfrm, curr_idx);
-
+        
         // update the descriptor
         lm->compute_descriptor();
         // update the geometry
         lm->update_normal_and_depth();
-
+        
         // set the 2D-3D assocications to the current frame
         curr_frm.landmarks_.at(curr_idx) = lm;
         curr_frm.outlier_flags_.at(curr_idx) = false;
-
+        
         // add the landmark to the map DB
         map_db_->add_landmark(lm);
+        std::cout << "DEBUG 7" << std::endl;
     }
-
+    std::cout << "DEBUG 8" << std::endl;
     // global bundle adjustment
     const auto global_bundle_adjuster = optimize::global_bundle_adjuster(map_db_, num_ba_iters_, true);
     global_bundle_adjuster.optimize();
-
+    std::cout << "DEBUG 9" << std::endl;
     // scale the map so that the median of depths is 1.0
     const auto median_depth = init_keyfrm->compute_median_depth(init_keyfrm->camera_->model_type_ == camera::model_type_t::Equirectangular);
     const auto inv_median_depth = 1.0 / median_depth;

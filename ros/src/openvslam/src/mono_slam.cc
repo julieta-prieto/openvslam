@@ -145,6 +145,30 @@ void mono_tracking(const std::shared_ptr<openvslam::config>& cfg, const std::str
     socket_publisher::publisher publisher(cfg, &SLAM, SLAM.get_frame_publisher(), SLAM.get_map_publisher());
 #endif
 
+    // run the viewer in another thread
+#ifdef USE_PANGOLIN_VIEWER
+    std::thread thread([&]() {
+        viewer.run();
+        if (SLAM.terminate_is_requested()) {
+            // wait until the loop BA is finished
+            while (SLAM.loop_BA_is_running()) {
+                std::this_thread::sleep_for(std::chrono::microseconds(5000));
+            }
+            ros::shutdown();
+        }
+    });
+#elif USE_SOCKET_PUBLISHER
+    std::thread thread([&]() {
+        publisher.run();
+        if (SLAM.terminate_is_requested()) {
+            // wait until the loop BA is finished
+            while (SLAM.loop_BA_is_running()) {
+                std::this_thread::sleep_for(std::chrono::microseconds(5000));
+            }
+            ros::shutdown();
+        }
+    });
+#endif
     /*std::vector<double> track_times;
     const auto tp_0 = std::chrono::steady_clock::now();*/
 
@@ -296,30 +320,7 @@ void mono_tracking(const std::shared_ptr<openvslam::config>& cfg, const std::str
     //-------------------------------------------------------------------------------------------
     //-------------------------------------------------------------------------------------------
 
-    // run the viewer in another thread
-#ifdef USE_PANGOLIN_VIEWER
-    std::thread thread([&]() {
-        viewer.run();
-        if (SLAM.terminate_is_requested()) {
-            // wait until the loop BA is finished
-            while (SLAM.loop_BA_is_running()) {
-                std::this_thread::sleep_for(std::chrono::microseconds(5000));
-            }
-            ros::shutdown();
-        }
-    });
-#elif USE_SOCKET_PUBLISHER
-    std::thread thread([&]() {
-        publisher.run();
-        if (SLAM.terminate_is_requested()) {
-            // wait until the loop BA is finished
-            while (SLAM.loop_BA_is_running()) {
-                std::this_thread::sleep_for(std::chrono::microseconds(5000));
-            }
-            ros::shutdown();
-        }
-    });
-#endif
+
 
     ros::spin();
 

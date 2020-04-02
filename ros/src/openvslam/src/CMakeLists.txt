@@ -14,10 +14,10 @@ endif()
 
 set(EXECUTABLE_TARGETS "")
 
-add_library(${PROJECT_NAME}
-            SHARED
-            ${CMAKE_CURRENT_SOURCE_DIR}/MsgSync/MsgSynchronizer.h
-            ${CMAKE_CURRENT_SOURCE_DIR}/MsgSync/MsgSynchronizer.cpp)
+#add_library(${PROJECT_NAME}
+#            SHARED
+#            ${CMAKE_CURRENT_SOURCE_DIR}/MsgSync/MsgSynchronizer.h
+#            ${CMAKE_CURRENT_SOURCE_DIR}/MsgSync/MsgSynchronizer.cpp)
 
 
 add_executable(run_slam run_slam.cc)

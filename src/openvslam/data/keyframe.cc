@@ -186,7 +186,6 @@ const IMUPreintegrator & keyframe::GetIMUPreInt(void)
 
 void keyframe::ComputePreInt(void)
 {
-    std::cout << "ComputePreInt 1" << std::endl;
     std::unique_lock<std::mutex> lock(mMutexIMUData);
     if(mpPrevKeyFrame == NULL)
     {
@@ -198,7 +197,6 @@ void keyframe::ComputePreInt(void)
     }
     else
     {
-        std::cout << "ComputePreInt 2" << std::endl;
         // Debug log
         //cout<<std::fixed<<std::setprecision(3)<<
         //      "gyro bias: "<<mNavState.Get_BiasGyr().transpose()<<
@@ -214,16 +212,10 @@ void keyframe::ComputePreInt(void)
         // IMU pre-integration integrates IMU data from last to current, but the bias is from last
         Vector3d bg = mpPrevKeyFrame->GetNavState().Get_BiasGyr();
         Vector3d ba = mpPrevKeyFrame->GetNavState().Get_BiasAcc();
-        std::cout << "ComputePreInt 3" << std::endl;
         // remember to consider the gap between the last KF and the first IMU
         {
-            std::cout << "ComputePreInt 4" << std::endl;
             const IMUData& imu = mvIMUData.front();
-            std::cout << "ComputePreInt 5" << std::endl;
-            std::cerr<<std::fixed<<std::setprecision(3)<<"prev KF: "<<mpPrevKeyFrame->timestamp_<<std::endl;
-            std::cerr<<std::fixed<<std::setprecision(3)<<"last imu time: "<<imu._t<<std::endl;
             double dt = imu._t - mpPrevKeyFrame->timestamp_;
-            std::cout << "ComputePreInt 6" << std::endl;
             mIMUPreInt.update(imu._g - bg,imu._a - ba,dt);
             
             // Test log
