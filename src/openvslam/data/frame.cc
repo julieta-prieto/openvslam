@@ -170,9 +170,31 @@ frame::frame(const cv::Mat& img_gray, const double &timestamp, const std::vector
 
     //Añadido por mi
     fx = K.at<float>(0,0);
-    /*fy = K.at<float>(1,1);
+    fy = K.at<float>(1,1);
     cx = K.at<float>(0,2);
-    cy = K.at<float>(1,2);*/
+    cy = K.at<float>(1,2);
+}
+
+frame::frame(){}
+
+//Copy Constructor
+frame::frame(const frame &frame)
+    :id_(frame.id_), /*next_id_(frame.next_id_), */bow_vocab_(frame.bow_vocab_), extractor_(frame.extractor_),
+    extractor_right_(frame.extractor_right_), timestamp_(frame.timestamp_), camera_(frame.camera_), depth_thr_(frame.depth_thr_), num_keypts_(frame.num_keypts_),
+    keypts_(frame.keypts_), keypts_right_(frame.keypts_right_), undist_keypts_(frame.undist_keypts_), 
+    bearings_(frame.bearings_), stereo_x_right_(frame.stereo_x_right_), depths_(frame.depths_), bow_vec_(frame.bow_vec_), bow_feat_vec_(frame.bow_feat_vec_),
+    descriptors_(frame.descriptors_), descriptors_right_(frame.descriptors_right_), 
+    landmarks_(frame.landmarks_), outlier_flags_(frame.outlier_flags_), keypt_indices_in_cells_(frame.keypt_indices_in_cells_),
+    cam_pose_cw_is_valid_(frame.cam_pose_cw_is_valid_), cam_pose_cw_(frame.cam_pose_cw_), 
+    ref_keyfrm_(frame.ref_keyfrm_), num_scale_levels_(frame.num_scale_levels_), scale_factor_(frame.scale_factor_),
+    log_scale_factor_(frame.log_scale_factor_), scale_factors_(frame.scale_factors_), 
+    inv_scale_factors_(frame.inv_scale_factors_), level_sigma_sq_(frame.level_sigma_sq_), inv_level_sigma_sq_(frame.inv_level_sigma_sq_),
+    rot_cw_(frame.rot_cw_), trans_cw_(frame.trans_cw_), rot_wc_(frame.rot_wc_), cam_center_(frame.cam_center_)
+{
+    mvIMUDataSinceLastFrame = frame.mvIMUDataSinceLastFrame;
+    mNavState = frame.GetNavState();
+    mMargCovInv = frame.mMargCovInv;
+    mNavStatePrior = frame.mNavStatePrior;
 }
 //-------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------

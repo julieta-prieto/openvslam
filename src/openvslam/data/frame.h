@@ -44,7 +44,9 @@ class frame {
 public:
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
-    frame() = default;
+    frame();// = default;
+
+    frame(const frame& frame);
 
     bool operator==(const frame& frm) { return this->id_ == frm.id_; }
     bool operator!=(const frame& frm) { return !(*this == frm); }
