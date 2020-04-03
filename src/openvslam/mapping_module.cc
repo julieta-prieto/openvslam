@@ -156,7 +156,7 @@ cv::Mat mapping_module::GetRwiInit()
 void mapping_module::VINSInitThread()
 {
     unsigned long initedid = 0;
-    std::cerr<<"start VINSInitThread"<<std::endl;
+    spdlog::info("start VINSInitThread");
     while(1)
     {
         if(data::keyframe::next_id_ > 2)

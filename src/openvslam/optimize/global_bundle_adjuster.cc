@@ -24,11 +24,11 @@ global_bundle_adjuster::global_bundle_adjuster(data::map_database* map_db, const
 
 void global_bundle_adjuster::optimize(const unsigned int lead_keyfrm_id_in_global_BA, bool* const force_stop_flag) const {
     // 1. データを集める
-
+    
     const auto keyfrms = map_db_->get_all_keyframes();
     const auto lms = map_db_->get_all_landmarks();
     std::vector<bool> is_optimized_lm(lms.size(), true);
-
+    
     // 2. optimizerを構築
 
     auto linear_solver = ::g2o::make_unique<::g2o::LinearSolverCSparse<::g2o::BlockSolver_6_3::PoseMatrixType>>();
@@ -46,7 +46,7 @@ void global_bundle_adjuster::optimize(const unsigned int lead_keyfrm_id_in_globa
 
     // shot vertexのcontainer
     g2o::se3::shot_vertex_container keyfrm_vtx_container(0, keyfrms.size());
-
+    std::cout << "DEBUG 2" << std::endl;
     // keyframesをoptimizerにセット
     for (const auto keyfrm : keyfrms) {
         if (!keyfrm) {
@@ -55,9 +55,10 @@ void global_bundle_adjuster::optimize(const unsigned int lead_keyfrm_id_in_globa
         if (keyfrm->will_be_erased()) {
             continue;
         }
-
+        std::cout << "DEBUG 3" << std::endl;
         auto keyfrm_vtx = keyfrm_vtx_container.create_vertex(keyfrm, keyfrm->id_ == 0);
         optimizer.addVertex(keyfrm_vtx);
+
     }
 
     // 4. keyframeとlandmarkのvertexをreprojection edgeで接続する

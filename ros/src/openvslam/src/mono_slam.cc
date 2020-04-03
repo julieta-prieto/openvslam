@@ -36,6 +36,7 @@
 #include "openvslam/util/converter.h"
 
 //#undef RUN_REALTIME
+//#undef TRACK_WITH_IMU
 //-------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------
@@ -322,7 +323,7 @@ void mono_tracking(const std::shared_ptr<openvslam::config>& cfg, const std::str
 
 
 
-    ros::spin();
+    //ros::spin();
 
     // automatically close the viewer
 #ifdef USE_PANGOLIN_VIEWER

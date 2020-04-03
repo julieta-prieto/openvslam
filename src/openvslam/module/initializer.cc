@@ -94,6 +94,7 @@ bool initializer::initialize(data::frame& curr_frm, std::vector<IMUData>& mvIMUS
 
             // create new map if succeeded
             create_map_for_stereo(curr_frm);
+
             break;
         }
         default: {
@@ -258,13 +259,14 @@ bool initializer::create_map_for_monocular(data::frame& curr_frm, std::vector<IM
         
         // add the landmark to the map DB
         map_db_->add_landmark(lm);
-        std::cout << "DEBUG 7" << std::endl;
+        
     }
-    std::cout << "DEBUG 8" << std::endl;
+    
     // global bundle adjustment
     const auto global_bundle_adjuster = optimize::global_bundle_adjuster(map_db_, num_ba_iters_, true);
+    std::cout << "DEBUG 1" << std::endl;
     global_bundle_adjuster.optimize();
-    std::cout << "DEBUG 9" << std::endl;
+    
     // scale the map so that the median of depths is 1.0
     const auto median_depth = init_keyfrm->compute_median_depth(init_keyfrm->camera_->model_type_ == camera::model_type_t::Equirectangular);
     const auto inv_median_depth = 1.0 / median_depth;

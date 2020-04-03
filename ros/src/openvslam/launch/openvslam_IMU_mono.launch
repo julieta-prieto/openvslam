@@ -17,7 +17,7 @@
     <arg name="left_camera_info"  default="/t265/camera/fisheye1/rect/camera_info"/> 
     <arg name="right_camera_info" default="/t265/camera/fisheye2/rect/camera_info"/>
 	
-	<arg name="camera_config"			default="EuRoC_mono.yaml"/> <!--Name of the camera's configuration file -->
+	<arg name="camera_config"			default="EuRoC_mono_goodParams.yaml"/> <!--Name of the camera's configuration file -->
 	<arg name="config_path" 			default="$(arg vslam_repo_path)/config/$(arg camera_config)"/> <!-- Config file path -->
 
 	<arg name="orb_vocab_config"		default="orb_vocab.dbow2"/> <!-- Orb_vocab file name -->
@@ -35,7 +35,7 @@
  	</node>-->
 
 	<!-- Launch OpenVSLAM -->
-	<node pkg="openvslam" type="mono_slam" name="mono_slam" args="-v $(arg orb_vocab_path)   -c $(arg config_path)  $(arg arg_keyframes)" output="screen">
+	<node pkg="openvslam" type="mono_slam" name="mono_slam" launch-prefix = "gdb -ex run --args" args="-v $(arg orb_vocab_path)   -c $(arg config_path)  $(arg arg_keyframes)" output="screen">
 		<param name="save_file_path" 	value="$(arg save_keyframes_path)"/>
 		<!--<param name="left_image_raw"    value="$(arg left_image_raw)"/> 
 	    <param name="right_image_raw"   value="$(arg right_image_raw)"/> 
